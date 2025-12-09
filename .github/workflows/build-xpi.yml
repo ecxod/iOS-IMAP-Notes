@@ -1,0 +1,80 @@
+name: Build XPI
+
+on:
+  push:
+    branches: [ main, master, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Für Tags
+    
+    - name: Extract version from manifest.json
+      id: version
+      run: |
+        VERSION=$(jq -r '.version' manifest.json)
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+      shell: bash
+    
+    - name: Install 7-Zip
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y p7zip-full
+    
+    - name: Build XPI
+      id: build
+      run: |
+        XPI_NAME="thunderbird-ios-imap-notes-${{ steps.version.outputs.version }}.xpi"
+        
+        # Temporäres ZIP erstellen (ohne unnötigen Kram)
+        7z a -tzip "temp.zip" \
+          "./*" \
+          -x!.git \
+          -x!.github \
+          -x!*.md \
+          -x!.gitignore \
+          -x!node_modules \
+          -x!*.log \
+          -x!screenshots \
+          -x!build-xpi* \
+          -x!.DS_Store \
+          -x!__MACOSX
+        
+        # Umbenennen zu .xpi
+        mv "temp.zip" "$XPI_NAME"
+        
+        # Prüfen ob Datei da ist
+        if [ -f "$XPI_NAME" ]; then
+          echo "xpi_path=$XPI_NAME" >> $GITHUB_OUTPUT
+          echo "Build successful: $XPI_NAME"
+        else
+          echo "Build failed!"
+          exit 1
+        fi
+      shell: bash
+    
+    - name: Upload XPI Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: thunderbird-ios-imap-notes-xpi
+        path: thunderbird-ios-imap-notes-*.xpi
+        retention-days: 30  # 30 Tage haltbar
+    
+    - name: Create Release (on tag only)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: thunderbird-ios-imap-notes-*.xpi
+        generate_release_notes: true
+        tag_name: ${{ github.ref_name }}
+        name: Release ${{ steps.version.outputs.version }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
