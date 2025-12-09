@@ -1,0 +1,51 @@
+html,
+body {
+	height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-gray-10);
+  min-width: 400px;
+}
+
+.container {
+  height: 100%;
+  min-height: 100%;
+	display: flex;
+	flex-direction: column;
+  font-size: 14px;
+}
+
+.hbox {
+  display: flex;
+  flex-direction: row;
+}
+
+.center {
+  align-items: center;
+}
+
+.edges {
+  justify-content: space-between;
+}
+
+.right {
+  justify-content: end;
+}
+
+.padding > * {
+  margin: 5px;
+}
+
+#editor-area {
+  flex: 1;
+  width: auto;
+}
+
+.overlays img {
+  width:16px;
+  height: 16px;
+}
+
+.hidden {
+  display:none;
+}

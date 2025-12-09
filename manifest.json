@@ -1,0 +1,51 @@
+{
+	"manifest_version": 2,
+	"name": "iOS IMAP Notes",
+	"description": "Edit IMAP Notes created by iOS devices within Thunderbird",
+	"version": "1.0.1",
+	"author": "Jesse Lujack",
+	"developer": {
+		"name": "Jesse Lujack, John Bieling"
+	},
+	"default_locale": "en-US",
+	"applications": {
+		"gecko": {
+			"id": "iOSNotes@siliconvenice.net",
+			"strict_min_version": "115.0"
+		}
+	},
+	"options_ui": {
+		"page": "options/options.html"
+	},
+    "commands": {
+        "open-ios-editor": {
+            "suggested_key": {
+                "default": "Ctrl+Q"
+            },
+        "description": "Open the iOS notes editor"
+        },
+        "saveclose-ios-editor": {
+            "suggested_key": {
+                "default": "Alt+Q"
+            },
+        "description": "Save and close the note"
+        }
+    },
+	"background": {
+		"page": "background.html"
+	},
+	"icons": {
+		"32": "images/iOSNotes.png"
+	},
+	"permissions": [
+		"storage",
+		"menus",
+		"tabs",
+		"messagesRead",
+		"messagesMove",
+		"messagesImport",
+		"accountsRead",
+		"accountsFolders",
+		"messagesDelete"
+	]
+}

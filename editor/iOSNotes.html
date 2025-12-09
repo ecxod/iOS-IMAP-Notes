@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>__MSG_extName__</title>
+  <link rel="stylesheet" href="chrome://messenger/skin/colors.css">
+
+  <!-- https://cdn.jsdelivr.net/npm/suneditor@latest/dist/css/suneditor.min.css -->
+  <link href="../scripts/suneditor/suneditor.min.css" rel="stylesheet">
+  <!-- <link href="https://cdn.jsdelivr.net/npm/suneditor@latest/assets/css/suneditor.css" rel="stylesheet"> -->
+  <!-- <link href="https://cdn.jsdelivr.net/npm/suneditor@latest/assets/css/suneditor-contents.css" rel="stylesheet"> -->
+
+  <!-- https://cdn.jsdelivr.net/npm/suneditor@latest/dist/suneditor.min.js -->
+  <script src="../scripts/suneditor/suneditor.min.js"></script>
+
+  <!-- languages (Basic Language: English/en) -->
+  <!-- https://cdn.jsdelivr.net/npm/suneditor@latest/src/lang/ko.js -->
+  <!-- script src="../scripts/suneditor/ko.js"></script -->
+
+  <!-- https://github.com/muratgozel/MIMEText/tree/master/dist/browser/mimetext.iife.js  -->
+  <script src="../scripts/mimetext/mimetext.iife.js"></script>
+
+
+  <link rel="stylesheet" href="iOSNotes.css">
+  <script src="../scripts/i18n.js"></script>
+  <script type="module" src="iOSNotes.mjs"></script>
+</head>
+
+<body>
+  <div class="container">
+    <div id="control-area" class="hbox center edges">
+      <div class="hbox center padding">
+        <span>__MSG_mailSubject__</span>
+        <input id="subjectBox" type="text"/>
+      </div>
+      <div class="hbox center padding right">
+        <div id="busy" class="overlays hidden">
+          <img src="/images/spinner.gif"/>
+        </div>
+        <div id="ok" class="overlays hidden">
+          <img src="/images/check.png"/>
+        </div>
+        <div id="error" class="overlays hidden">
+          <img src="/images/error.png"/>
+        </div>
+        <button id="btn_save">__MSG_Save__</button>
+        <!-- <button id="btn_cancel">__MSG_Close__</button> -->
+      </div>
+    </div>
+
+    <div id="editor-area">
+      <textarea id="editor"></textarea>
+    </div>
+
+  </div>
+
+</body>
+
+</html>
