@@ -2,10 +2,10 @@
 	"manifest_version": 2,
 	"name": "iOS IMAP Notes",
 	"description": "Edit IMAP Notes created by iOS devices within Thunderbird",
-	"version": "1.0.1",
-	"author": "Jesse Lujack",
+	"version": "1.0.2",
+	"author": "Christian Eichert",
 	"developer": {
-		"name": "Jesse Lujack, John Bieling"
+		"name": "Christian Eichert, Jesse Lujack, John Bieling"
 	},
 	"default_locale": "en-US",
 	"applications": {

@@ -1,0 +1,32 @@
+{
+    "Save": {
+        "message": "Speichern und Schließen"
+    },
+    "Close": {
+        "message": "Schließen"
+    },
+    "extName": {
+        "message": "iOS IMAP Notes"
+    },
+    "iOSimapNotes": {
+        "message": "IOS IMAP Note bearbeiten"
+    },
+    "mailSubject": {
+        "message": "Subject: "
+    },
+    "misc": {
+        "message": "Miscellaneous"
+    },
+    "noiOSNote": {
+        "message": "Dies scheint keine gültige iOS Note zu sein!"
+    },
+    "prefTitle": {
+        "message": "iOS IMAP Notes Optionen"
+    },
+    "subject": {
+        "message": "Subject: "
+    },
+    "trashOption": {
+        "message": "Originalnachricht in lokalen Müllordner setzen"
+    }
+}
