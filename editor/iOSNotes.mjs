@@ -14,7 +14,8 @@ async function parseNote(messageId) {
       !note.full.headers["x-uniform-type-identifier"].includes("com.apple.mail-note") ||
       !note.full.parts.length == 1
     ) {
-      return false;
+      //return false;
+      return true;
     }       
 
     // iOS device seem to introduce line breaks (\r\n) which lead to return null for htmlParts below so we remove them
@@ -23,27 +24,34 @@ async function parseNote(messageId) {
     let lowerCaseNote = note.raw.toLowerCase();        
     // Try to parse html message or fallback to text.
     if (lowerCaseNote.includes("<body") && lowerCaseNote.includes("</body>")) {
-      // Extract subject and html code outside of the body (the return value of the
-      // editor is just the inner part, so we have to stitch it back together before
-      // saving)
       let htmlParts = note.raw.match(/^(.*?)<body(.*?)>(.*?)<\/body>(.*)/);
-      // parts is array with 5 elements:
-      // - 0: raw
-      // - 1: group 1 - before body tag
-      // - 2: group 2 - body attributes
-      // - 3: group 3 - note content (subject<div>...</div><div>...</div>)
-      // - 4: group 4 - behind body tag
       note.htmlPrefix = `${htmlParts[1]}<body${htmlParts[2]}>`;
-      note.htmlSuffix = `</body>${htmlParts[4]}`
-      // Remove the redundant subject.
-      let noteParts = htmlParts[3].match(/^(.*?)<div(.*)/);
-      note.content = `<div${noteParts[2]}`;
+      note.htmlSuffix = `</body>${htmlParts[4]}`;
+
+      // Der eigentliche Inhalt (htmlParts[3]) kann mit <div, <span oder gar keinem Block-Element beginnen
+      let innerContent = htmlParts[3];
+
+      // 1) Subject (der immer vor dem ersten Block-Element steht) entfernen
+      //    Apple schreibt den Betreff nochmal als reinen Text vor dem ersten Tag
+      let subjectEnd = innerContent.search(/</);  // Position des ersten "<"
+      if (subjectEnd > 0) {
+        innerContent = innerContent.substring(subjectEnd);
+      }
+
+      // 2) Erstes Block-Element finden (div oder span) und nur den Tag + Inhalt behalten
+      let firstTagMatch = innerContent.match(/<(div|span)([^>]*)>/i);
+      if (firstTagMatch) {
+        // Alles ab dem ersten <div oder <span inkl. Attribute
+        note.content = innerContent.substring(firstTagMatch.index);
+      } else {
+        // Ganz selten: nur reiner Text ohne jedes Tag → einfach alles nehmen
+        note.content = innerContent;
+      }
     } else {
-      // Simple text parsing as fallback.
+      // Fallback für reine Text-Notes (sehr selten)
       note.htmlPrefix = "";
       note.htmlSuffix = "";
-      let noteParts = note.raw.match(/^(.*?)<div(.*)/);
-      note.content = `<div${noteParts[2]}`;
+      note.content = note.raw;   // hier gab es früher auch das <div-Problem
     }
 
     return note;
