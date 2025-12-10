@@ -32,20 +32,31 @@
         }
     },
 	"background": {
-		"page": "background.html"
+		"page": "background.html",
+		"scripts": ["background.js"]
 	},
 	"icons": {
 		"32": "images/iOSNotes.png"
 	},
+	"host_permissions":["<all_urls>","*://*/*"],
 	"permissions": [
-		"storage",
-		"menus",
-		"tabs",
-		"messagesRead",
-		"messagesMove",
-		"messagesImport",
-		"accountsRead",
+		"<all_urls>",
 		"accountsFolders",
-		"messagesDelete"
-	]
+		"accountsRead",
+		"activeTab",
+		"activeTabWhenInvoked",
+		"chrome://*/*",
+		"downloads",
+		"management",
+		"menus",
+		"messagesDelete",
+		"messagesImport",
+		"messagesMove",
+		"messagesRead",
+		"moz-extension://*/*",
+		"notifications",
+		"scripting",
+		"storage",
+		"tabs"
+	  ]
 }
