@@ -307,7 +307,7 @@ async function updateNote({ origNoteMsgHeader, utf8NewNote, keepBackup }) {
     newMovedMsgHeader = await new Promise((resolve, reject) => {
       let checkFolder = async () => {
         let page = await browser.messages.query({
-          folder: origNoteMsgHeader.folder,
+          folderId: origNoteMsgHeader.folder.id,          // ← .id statt folder: …
           headerMessageId: newNoteHeader.headerMessageId
         });
         do {
@@ -335,7 +335,7 @@ async function updateNote({ origNoteMsgHeader, utf8NewNote, keepBackup }) {
           window.setTimeout(checkFolder, 500);
         }
       };
-      messenger.messages.move([newNoteHeader.id], origNoteMsgHeader.folder);
+      messenger.messages.move([newNoteHeader.id], origNoteMsgHeader.folder.id);
       checkFolder();
     });
   } catch (ex) {
@@ -348,7 +348,7 @@ async function updateNote({ origNoteMsgHeader, utf8NewNote, keepBackup }) {
 
   // Remove or backup original note.
   if (keepBackup) {
-    await messenger.messages.move([origNoteMsgHeader.id], trashFolder);
+    await messenger.messages.move([origNoteMsgHeader.id], trashFolder.id);
   } else {
     await messenger.messages.delete([origNoteMsgHeader.id], true);
   }
