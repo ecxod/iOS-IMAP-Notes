@@ -8,10 +8,10 @@
 		"name": "Christian Eichert, Jesse Lujack, John Bieling"
 	},
 	"default_locale": "en-US",
-	"applications": {
+	"browser_specific_settings": {
 		"gecko": {
-			"id": "iOSNotes@zp1.net",
-			"strict_min_version": "121"
+			"id": "iOSNotes@siliconvenice.net",
+			"strict_min_version": "128.0"
 		}
 	},
 	"options_ui": {
@@ -36,24 +36,14 @@
 		"scripts": ["background.js"]
 	},
 	"icons": {
-		"32": "images/iOSNotes.png"
+		"48": "images/iOSNotes.png"
 	},
-	"host_permissions":["<all_urls>","*://*/*"],
 	"permissions": [
 		"<all_urls>",
-		"accountsFolders",
-		"accountsRead",
 		"activeTab",
-		"activeTabWhenInvoked",
-		"chrome://*/*",
 		"downloads",
 		"management",
 		"menus",
-		"messagesDelete",
-		"messagesImport",
-		"messagesMove",
-		"messagesRead",
-		"moz-extension://*/*",
 		"notifications",
 		"scripting",
 		"storage",
