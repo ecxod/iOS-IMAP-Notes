@@ -1,8 +1,17 @@
 export const APPLE_NOTE_UTI = "com.apple.mail-note";
 
 function firstHeader(headers, name) {
-  const value = headers?.[name.toLowerCase()];
-  return Array.isArray(value) ? value[0] : value;
+  return headerValues(headers, name)[0];
+}
+
+function headerValues(headers, name) {
+  const wantedName = name.toLowerCase();
+  const entry = Object.entries(headers || {})
+    .find(([headerName]) => headerName.toLowerCase() === wantedName);
+  if (!entry) {
+    return [];
+  }
+  return Array.isArray(entry[1]) ? entry[1] : [entry[1]];
 }
 
 function findPart(parts, contentType) {
@@ -19,8 +28,8 @@ function findPart(parts, contentType) {
 }
 
 export function isAppleNote(fullMessage) {
-  return (fullMessage?.headers?.["x-uniform-type-identifier"] || [])
-    .some(value => value.toLowerCase() === APPLE_NOTE_UTI);
+  return headerValues(fullMessage?.headers, "x-uniform-type-identifier")
+    .some(value => String(value).trim().toLowerCase() === APPLE_NOTE_UTI);
 }
 
 export function parseAppleNote(fullMessage) {
@@ -53,6 +62,35 @@ export function parseAppleNote(fullMessage) {
     htmlPrefix: "",
     htmlSuffix: "",
   };
+}
+
+export async function waitForAppleNote(
+  loadMessage,
+  { attempts = 1, delayMs = 250 } = {},
+) {
+  let lastError = null;
+
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      const full = await loadMessage();
+      const parsed = parseAppleNote(full);
+      if (parsed) {
+        return { full, parsed };
+      }
+      lastError = null;
+    } catch (error) {
+      lastError = error;
+    }
+
+    if (attempt + 1 < attempts) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+
+  if (lastError) {
+    throw lastError;
+  }
+  return null;
 }
 
 export function replaceAppleNoteBody(parsedNote, bodyHtml) {

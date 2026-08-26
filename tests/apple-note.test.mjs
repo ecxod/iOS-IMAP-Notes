@@ -7,6 +7,7 @@ import {
   isAppleNote,
   parseAppleNote,
   replaceAppleNoteBody,
+  waitForAppleNote,
 } from "../scripts/apple-note.mjs";
 
 function noteMessage(body, parts = null) {
@@ -21,7 +22,23 @@ function noteMessage(body, parts = null) {
 
 test("recognizes only Apple IMAP notes", () => {
   assert.equal(isAppleNote(noteMessage("Shopping<div>Milk</div>")), true);
+  assert.equal(isAppleNote({
+    headers: { "X-Uniform-Type-Identifier": " com.apple.mail-note\t" },
+  }), true);
   assert.equal(isAppleNote({ headers: {}, parts: [] }), false);
+});
+
+test("waits for a newly imported IMAP note to become readable", async () => {
+  const note = noteMessage("New note<div><br></div>");
+  let reads = 0;
+  const loaded = await waitForAppleNote(async () => {
+    reads++;
+    return reads < 3 ? { headers: {}, parts: [] } : note;
+  }, { attempts: 3, delayMs: 0 });
+
+  assert.equal(reads, 3);
+  assert.equal(loaded.parsed.subject, "Shopping");
+  assert.equal(loaded.parsed.bodyHtml, "New note<div><br></div>");
 });
 
 test("keeps the complete HTML wrapper while replacing the message body", () => {

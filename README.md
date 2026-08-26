@@ -72,7 +72,7 @@ also produces the installable Windows `.exe` and attaches it to tagged releases.
 
 ## Compatibility
 
-Version 1.1.0 targets Thunderbird 128 and later. Older releases remain available
+Version 1.1.1 targets Thunderbird 128 and later. Older releases remain available
 for Thunderbird 115 and earlier extension behavior.
 
 ## Contributors

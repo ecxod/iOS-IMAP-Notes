@@ -3,8 +3,8 @@ import {
   APPLE_NOTE_UTI,
   createAppleNoteDocument,
   isAppleNote,
-  parseAppleNote,
   replaceAppleNoteBody,
+  waitForAppleNote,
 } from "./scripts/apple-note.mjs";
 
 const EDIT_MENU_ID = "iosNotesEdit";
@@ -40,15 +40,16 @@ async function getDisplayedMessage(tabId) {
   }
 }
 
-async function getNote(messageId) {
-  const full = await browser.messages.getFull(messageId);
-  const parsed = parseAppleNote(full);
-  if (!parsed) {
+async function getNote(messageId, options = {}) {
+  const note = await waitForAppleNote(
+    () => browser.messages.getFull(messageId),
+    options,
+  );
+  if (!note) {
     return null;
   }
   return {
-    full,
-    parsed,
+    ...note,
     header: await browser.messages.get(messageId),
   };
 }
@@ -95,11 +96,13 @@ async function refreshDisplayedMessage(tab, message) {
   }
 
   try {
+    if (await tryPendingAutoEdit(tab.id, message)) {
+      return;
+    }
     const full = await browser.messages.getFull(message.id);
     const appleNote = isAppleNote(full);
     editingTabs.delete(tab.id);
     await updateAction(tab.id, appleNote);
-    await tryPendingAutoEdit(tab.id, message);
   } catch (error) {
     console.error("Could not inspect displayed message", error);
     await updateAction(tab.id, false);
@@ -116,7 +119,7 @@ async function tryPendingAutoEdit(tabId, message) {
   }
 
   try {
-    if (await beginEditing(tabId, message)) {
+    if (await beginEditing(tabId, message, { attempts: 24, delayMs: 250 })) {
       pendingAutoEdit.delete(tabId);
       return true;
     }
@@ -126,15 +129,26 @@ async function tryPendingAutoEdit(tabId, message) {
   return false;
 }
 
-async function beginEditing(tabId, message = null) {
+function isSameMessage(left, right) {
+  return left?.id === right?.id || Boolean(
+    left?.headerMessageId && left.headerMessageId === right?.headerMessageId,
+  );
+}
+
+async function beginEditing(tabId, message = null, options = {}) {
   const displayed = message || await getDisplayedMessage(tabId);
   if (!displayed) {
     return false;
   }
 
-  const note = await getNote(displayed.id);
+  const note = await getNote(displayed.id, options);
   if (!note) {
     await updateAction(tabId, false);
+    return false;
+  }
+
+  const stillDisplayed = await getDisplayedMessage(tabId);
+  if (!isSameMessage(displayed, stillDisplayed)) {
     return false;
   }
 
