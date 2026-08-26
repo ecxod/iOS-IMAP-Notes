@@ -1,13 +1,14 @@
 {
   "name": "ios-imap-notes-offline",
   "productName": "iOS IMAP Notes Offline",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Offline desktop notes editor companion for iOS IMAP Notes",
   "author": "Christian Eichert",
   "license": "GPL-3.0-only",
   "main": "main.js",
   "scripts": {
-    "check": "node --check main.js && node --check preload.js && node --check renderer.js",
+    "check": "node --check apple-note.js && node --check imap-service.js && node --check update-utils.js && node --check main.js && node --check preload.js && node --check renderer.js",
+    "test": "node --test test/*.test.js",
     "dist:dir": "electron-builder --dir",
     "dist:win": "electron-builder --win nsis",
     "start": "electron ."
@@ -19,8 +20,18 @@
   "build": {
     "appId": "net.siliconvenice.iosimapnotes.offline",
     "asar": true,
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ecxod",
+        "repo": "iOS-IMAP-Notes"
+      }
+    ],
     "files": [
       "main.js",
+      "apple-note.js",
+      "imap-service.js",
+      "update-utils.js",
       "preload.js",
       "renderer.js",
       "index.html",
@@ -42,9 +53,17 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     }
+  },
+  "dependencies": {
+    "electron-updater": "6.8.9",
+    "imapflow": "1.7.6",
+    "mailparser": "3.9.16",
+    "nodemailer": "9.0.5"
   }
 }

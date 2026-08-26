@@ -22,6 +22,6 @@ zip -q -r "$output_file" \
   options \
   scripts/apple-note.mjs \
   scripts/i18n.js \
-  scripts/mimetext
+  scripts/rfc822.mjs
 
 printf '%s\n' "$output_file"

@@ -17,7 +17,6 @@
   "noLocalTrash": { "message": "Der Papierkorb unter „Lokale Ordner“ konnte nicht geöffnet werden." },
   "noteChangedConflict": { "message": "Diese Notiz wurde nach dem Öffnen geändert und deshalb nicht überschrieben. Schließen Sie den Editor und öffnen Sie die aktuelle Version erneut." },
   "prefTitle": { "message": "Einstellungen für iOS IMAP Notes" },
-  "save": { "message": "Speichern" },
   "saveFailed": { "message": "Die Notiz konnte nicht gespeichert werden." },
   "saveInProgress": { "message": "Diese Notiz wird bereits gespeichert." },
   "saveNote": { "message": "Notiz speichern" },

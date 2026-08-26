@@ -3,7 +3,8 @@
 This project provides two editors for Apple Notes stored as IMAP messages:
 
 - a Thunderbird extension that edits a note directly in Thunderbird's Message Pane;
-- an optional Electron desktop application for local, offline notes.
+- an optional Electron desktop application with a local cache and multi-account
+  IMAP synchronization.
 
 ## Thunderbird extension
 
@@ -57,30 +58,48 @@ The resulting extension is written to
 `dist/thunderbird-ios-imap-notes-<version>.xpi`. The XPI intentionally excludes
 the Electron application and SunEditor.
 
-## Offline desktop editor
+## Desktop editor
 
 The optional application in `desktop/` uses the former SunEditor interface. It
-stores a private JSON notes library in Electron's per-user application-data
-directory and supports importing `.html`, `.htm`, and `.txt` files and exporting
-notes as HTML.
+supports any number of IMAP accounts. **Settings** stores an account name, IMAP
+host, port, TLS mode, username and Notes folder for each account. On Windows,
+passwords are encrypted for the signed-in user with DPAPI through Electron's
+`safeStorage`; passwords are never written to the notes cache.
 
-It is deliberately an offline local editor: it does not connect to Thunderbird
-or synchronize an IMAP mailbox.
+**Sync** reads Apple Notes from all enabled accounts into one mixed, locally
+cached list. Search covers note titles, bodies and account names across that
+complete list. The account filter can narrow the list without changing a note's
+storage location. Local-only notes remain supported, as do importing `.html`,
+`.htm` and `.txt` files and exporting notes as HTML.
+
+Every synchronized note records its source account, folder, IMAP UIDVALIDITY,
+UID, Apple UUID and source revision. Saving always appends the replacement to
+that same account and folder, then removes the previous message. If the server
+copy changed since synchronization, saving is stopped instead of overwriting
+it. The local cache keeps synchronized notes readable while disconnected; an
+IMAP note must be online to save or delete it.
 
 ```sh
 cd desktop
 npm ci
 npm run check
+npm test
 npm start
 ```
 
 `npm run dist:win` builds a 64-bit NSIS installer. The GitHub Actions workflow
 also produces the installable Windows `.exe` and attaches it to tagged releases.
+The installed app checks those releases on startup and shows its current version
+and update state at the bottom of the Notes list. New versions are downloaded and
+installed only after the user clicks the displayed update buttons. Every desktop
+release must include the generated `.exe`, `.exe.blockmap` and `latest.yml` files.
 
 ## Compatibility
 
-Version 1.2.0 targets Thunderbird 128 and later. Older releases remain available
-for Thunderbird 115 and earlier extension behavior.
+Version 1.3.0 targets Thunderbird 128 through 154. Because the Message Header
+Toolbar integration uses a MailExtension Experiment, each new Thunderbird major
+version must be verified before its compatibility limit is raised. Older
+releases remain available for Thunderbird 115 and earlier extension behavior.
 
 ## Contributors
 

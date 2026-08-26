@@ -108,7 +108,7 @@
     error.id = "ios-imap-notes-editor-error";
 
     const cancelButton = createButton(getMessage("cancel", "Cancel"), cancel);
-    const saveButton = createButton(getMessage("save", "Save"), save);
+    const saveButton = createButton(getMessage("Save", "Save"), save);
 
     status.append(statusLabel, error, cancelButton, saveButton);
 

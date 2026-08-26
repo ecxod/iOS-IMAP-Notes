@@ -20,14 +20,35 @@
       <div class="sidebar-actions">
         <button id="new-note" type="button">New</button>
         <button id="import-note" type="button">Import</button>
+        <button id="sync-notes" type="button">Sync</button>
+        <button id="open-settings" type="button">Settings</button>
       </div>
     </header>
-    <ol id="note-list" aria-label="Local notes"></ol>
+    <div class="sidebar-tools">
+      <input id="note-search" type="search" placeholder="Search all notes" aria-label="Search all notes">
+      <select id="account-filter" aria-label="Filter notes by account">
+        <option value="all">All accounts</option>
+        <option value="local">Local notes</option>
+      </select>
+      <span id="sync-state" role="status"></span>
+    </div>
+    <ol id="note-list" aria-label="Notes from all accounts"></ol>
+    <footer class="update-panel">
+      <div class="update-copy">
+        <strong id="app-version">Version</strong>
+        <span id="update-state" role="status">Updates not checked</span>
+      </div>
+      <div class="update-actions">
+        <button id="check-updates" type="button">Check</button>
+        <button id="update-app" type="button" class="primary" hidden>Update</button>
+      </div>
+    </footer>
   </aside>
 
   <main class="workspace">
     <header class="editor-header">
       <input id="note-title" type="text" maxlength="500" aria-label="Note title" placeholder="Note title">
+      <span id="note-home"></span>
       <span id="save-state" role="status"></span>
       <button id="export-note" type="button">Export</button>
       <button id="delete-note" type="button" class="danger">Delete</button>
@@ -35,11 +56,99 @@
     </header>
     <section id="empty-state">
       <h2>No note selected</h2>
-      <p>Create a local note or import an HTML/text file.</p>
+      <p>Create a note, configure an IMAP account, or synchronize your accounts.</p>
     </section>
     <section id="editor-area" hidden>
       <textarea id="editor"></textarea>
     </section>
   </main>
+
+  <dialog id="new-note-dialog">
+    <form method="dialog" id="new-note-form">
+      <header class="dialog-header">
+        <h2>New note</h2>
+      </header>
+      <label>
+        Save in
+        <select id="new-note-home"></select>
+      </label>
+      <p id="new-note-folder"></p>
+      <footer class="dialog-actions">
+        <button value="cancel" type="submit" formnovalidate>Cancel</button>
+        <button value="create" type="submit" class="primary">Create</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="settings-dialog">
+    <form method="dialog" id="settings-form">
+      <header class="dialog-header">
+        <div>
+          <h2>IMAP accounts</h2>
+          <p>Add any number of accounts. Passwords are encrypted with <span id="credential-protection">the operating system</span>.</p>
+        </div>
+        <button id="add-account" type="button">Add account</button>
+      </header>
+      <div id="account-list"></div>
+      <p id="settings-state" role="status"></p>
+      <footer class="dialog-actions">
+        <button value="cancel" type="submit" formnovalidate>Cancel</button>
+        <button value="save" type="submit" class="primary">Save settings</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <template id="account-template">
+    <section class="account-card">
+      <div class="account-card-title">
+        <label>
+          Account name
+          <input data-field="name" type="text" placeholder="Personal Notes" maxlength="120">
+        </label>
+        <label class="check-label">
+          <input data-field="enabled" type="checkbox" checked>
+          Sync
+        </label>
+        <button data-action="remove" type="button" class="danger">Remove</button>
+      </div>
+      <div class="account-grid">
+        <label>
+          IMAP host
+          <input data-field="host" type="text" placeholder="imap.example.org" required>
+        </label>
+        <label>
+          Port
+          <input data-field="port" type="number" min="1" max="65535" value="993" required>
+        </label>
+        <label>
+          Username
+          <input data-field="user" type="text" autocomplete="username" required>
+        </label>
+        <label>
+          Password
+          <input data-field="password" type="password" autocomplete="new-password" placeholder="Keep stored password">
+        </label>
+        <label>
+          Notes folder
+          <input data-field="mailbox" type="text" value="Notes" required>
+        </label>
+        <div class="account-options">
+          <label class="check-label">
+            <input data-field="secure" type="checkbox" checked>
+            TLS
+          </label>
+          <label class="check-label warning-option">
+            <input data-field="allowInvalidCertificates" type="checkbox">
+            Allow invalid certificate
+          </label>
+        </div>
+      </div>
+      <div class="account-test-row">
+        <button data-action="test" type="button">Test and discover folders</button>
+        <select data-field="discoveredMailbox" hidden aria-label="Discovered Notes folder"></select>
+        <span data-field="testState" role="status"></span>
+      </div>
+    </section>
+  </template>
 </body>
 </html>

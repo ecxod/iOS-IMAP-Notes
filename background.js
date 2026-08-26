@@ -8,6 +8,7 @@ import {
   replaceAppleNoteBody,
   waitForAppleNote,
 } from "./scripts/apple-note.mjs";
+import { createRawAppleNoteMessage } from "./scripts/rfc822.mjs";
 
 const EDIT_MENU_ID = "iosNotesEdit";
 const NEW_NOTE_MENU_ID = "iosNotesNew";
@@ -186,45 +187,8 @@ async function beginEditing(tabId, message = null, options = {}) {
   return true;
 }
 
-function mailbox(value) {
-  try {
-    return new globalThis.MimeText.Mailbox(value);
-  } catch (error) {
-    console.debug("Could not parse From header", value, error);
-    return value;
-  }
-}
-
 function createRawMessage(headers, html) {
-  const message = globalThis.MimeText.createMimeMessage();
-  const generatedHeaders = new Set([
-    "content-type",
-    "content-transfer-encoding",
-    "x-mozilla-keys",
-    "x-mozilla-status",
-    "x-mozilla-status2",
-  ]);
-
-  for (const [name, values] of Object.entries(headers)) {
-    if (generatedHeaders.has(name.toLowerCase())) {
-      continue;
-    }
-    let value = Array.isArray(values) ? values[0] : values;
-    if (value == null || value === "") {
-      continue;
-    }
-    if (name.toLowerCase() === "from") {
-      value = mailbox(value);
-    }
-    message.setHeader(name, value);
-  }
-
-  message.addMessage({
-    contentType: "text/html",
-    encoding: "8bit",
-    data: html,
-  });
-  return message.asRaw();
+  return createRawAppleNoteMessage(headers, html);
 }
 
 function uniqueHeaders({ subject, from, createdDate = null }) {
