@@ -1,0 +1,14 @@
+From - Wed Aug 26 12:05:00 2026
+From: Test User <test@example.invalid>
+To: Recipient <recipient@example.invalid>
+Subject: Normale Nachricht
+Date: Wed, 26 Aug 2026 12:05:00 +0000
+Message-Id: <regular-message-fixture@example.invalid>
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+Mime-Version: 1.0
+X-Mozilla-Status: 0001
+X-Mozilla-Status2: 00000000
+
+Diese Nachricht ist keine Apple-Notiz.
+

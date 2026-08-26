@@ -1,0 +1,4 @@
+/dist/
+/desktop/dist/
+/desktop/node_modules/
+*.log

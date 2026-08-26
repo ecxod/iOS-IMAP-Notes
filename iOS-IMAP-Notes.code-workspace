@@ -1,0 +1,70 @@
+{
+  "folders": [
+    {
+      "name": "iOS IMAP Notes",
+      "path": "."
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/.git": true,
+      "**/node_modules": true,
+      "dist": true,
+      "desktop/dist": true
+    },
+    "search.exclude": {
+      "**/node_modules": true,
+      "dist": true,
+      "desktop/dist": true,
+      "desktop/vendor": true
+    }
+  },
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "Test Thunderbird extension",
+        "type": "process",
+        "command": "npm",
+        "args": ["test"],
+        "options": {
+          "cwd": "${workspaceFolder}"
+        },
+        "group": "test",
+        "problemMatcher": []
+      },
+      {
+        "label": "Build Thunderbird XPI",
+        "type": "process",
+        "command": "npm",
+        "args": ["run", "build:xpi"],
+        "options": {
+          "cwd": "${workspaceFolder}"
+        },
+        "group": "build",
+        "problemMatcher": []
+      },
+      {
+        "label": "Start offline desktop editor",
+        "type": "process",
+        "command": "npm",
+        "args": ["start"],
+        "options": {
+          "cwd": "${workspaceFolder}/desktop"
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "Build Windows desktop installer",
+        "type": "process",
+        "command": "npm",
+        "args": ["run", "dist:win"],
+        "options": {
+          "cwd": "${workspaceFolder}/desktop"
+        },
+        "group": "build",
+        "problemMatcher": []
+      }
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+From - Wed Aug 26 12:00:00 2026
+From: Test User <test@example.invalid>
+Subject: Einkauf
+Date: Wed, 26 Aug 2026 12:00:00 +0000
+X-Mail-Created-Date: Wed, 26 Aug 2026 12:00:00 +0000
+X-Uniform-Type-Identifier: com.apple.mail-note
+X-Universally-Unique-Identifier: 11111111-2222-4333-8444-555555555555
+Message-Id: <apple-note-fixture@example.invalid>
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 8bit
+Mime-Version: 1.0
+X-Mozilla-Status: 0001
+X-Mozilla-Status2: 00000000
+
+<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="word-wrap: break-word;">Einkauf<div>Milch</div><div>Brot</div></body></html>
+

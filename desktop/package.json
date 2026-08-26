@@ -1,0 +1,50 @@
+{
+  "name": "ios-imap-notes-offline",
+  "productName": "iOS IMAP Notes Offline",
+  "version": "1.1.0",
+  "description": "Offline desktop notes editor companion for iOS IMAP Notes",
+  "author": "Christian Eichert",
+  "license": "GPL-3.0-only",
+  "main": "main.js",
+  "scripts": {
+    "check": "node --check main.js && node --check preload.js && node --check renderer.js",
+    "dist:dir": "electron-builder --dir",
+    "dist:win": "electron-builder --win nsis",
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "44.0.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "net.siliconvenice.iosimapnotes.offline",
+    "asar": true,
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer.js",
+      "index.html",
+      "styles.css",
+      "vendor/**/*"
+    ],
+    "artifactName": "ios-imap-notes-offline-${version}-${arch}.${ext}",
+    "directories": {
+      "output": "dist"
+    },
+    "nsis": {
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "oneClick": false,
+      "perMachine": false
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    }
+  }
+}

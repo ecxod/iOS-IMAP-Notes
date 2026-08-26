@@ -1,32 +1,27 @@
 {
-    "Save": {
-        "message": "Save & Close"
-    },
-    "Close": {
-        "message": "Close"
-    },
-    "extName": {
-        "message": "iOS IMAP Notes"
-    },
-    "iOSimapNotes": {
-        "message": "Edit iOS IMAP Note"
-    },
-    "mailSubject": {
-        "message": "Subject: "
-    },
-    "misc": {
-        "message": "Miscellaneous"
-    },
-    "noiOSNote": {
-        "message": "This does not appear to be a valid iOS note!"
-    },
-    "prefTitle": {
-        "message": "iOS IMAP Notes options"
-    },
-    "subject": {
-        "message": "Subject: "
-    },
-    "trashOption": {
-        "message": "Put original message in local Trash folder"
-    }
+  "Save": { "message": "Save" },
+  "Close": { "message": "Close" },
+  "cancel": { "message": "Cancel" },
+  "editNote": { "message": "Edit note" },
+  "editingNote": { "message": "Editing Apple note" },
+  "extDescription": { "message": "Create and edit Apple IMAP Notes directly in Thunderbird's message body" },
+  "extName": { "message": "iOS IMAP Notes" },
+  "iOSimapNotes": { "message": "Edit Apple IMAP note" },
+  "mailSubject": { "message": "Subject: " },
+  "misc": { "message": "Miscellaneous" },
+  "newNote": { "message": "New Apple note" },
+  "newNoteDefaultTitle": { "message": "New note" },
+  "noDisplayedNote": { "message": "No Apple note is currently displayed." },
+  "noiOSNote": { "message": "This does not appear to be a valid Apple note." },
+  "noLocalAccount": { "message": "No Local Folders account was found." },
+  "noLocalTrash": { "message": "The Local Folders Trash could not be opened." },
+  "prefTitle": { "message": "iOS IMAP Notes options" },
+  "save": { "message": "Save" },
+  "saveFailed": { "message": "The note could not be saved." },
+  "saveNote": { "message": "Save note" },
+  "savingNote": { "message": "Saving note…" },
+  "selectWritableFolder": { "message": "Select a writable mail folder for the new note." },
+  "subject": { "message": "Subject: " },
+  "trashOption": { "message": "Put original message in local Trash folder" },
+  "updatedNoteNotFound": { "message": "The updated note was not found in its IMAP folder." }
 }

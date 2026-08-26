@@ -1,0 +1,62 @@
+body.ios-imap-notes-editing {
+  min-height: calc(100vh - 2px);
+  margin: 0;
+  box-sizing: border-box;
+  background: var(--ios-notes-editor-background, Canvas);
+}
+
+#ios-imap-notes-editor-shell {
+  min-height: calc(100vh - 2px);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+#ios-imap-notes-editor-status {
+  position: sticky;
+  top: 0;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0.65rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  background: color-mix(in srgb, Canvas 94%, AccentColor 6%);
+  color: CanvasText;
+  font: menu;
+}
+
+#ios-imap-notes-editor-status-label {
+  flex: 1;
+}
+
+#ios-imap-notes-editor-status button {
+  font: inherit;
+}
+
+#ios-imap-notes-editor-surface {
+  flex: 1;
+  min-height: 12rem;
+  padding: 0.75rem;
+  outline: none;
+  overflow-wrap: anywhere;
+}
+
+#ios-imap-notes-editor-surface:focus {
+  box-shadow: inset 0 0 0 2px AccentColor;
+}
+
+#ios-imap-notes-editor-shell[data-busy="true"] #ios-imap-notes-editor-surface {
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+#ios-imap-notes-editor-error {
+  color: #b00020;
+}
+
+@media (prefers-color-scheme: dark) {
+  #ios-imap-notes-editor-error {
+    color: #ff9b9b;
+  }
+}

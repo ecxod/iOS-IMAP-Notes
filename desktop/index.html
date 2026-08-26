@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:"
+  >
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>iOS IMAP Notes Offline</title>
+  <link rel="stylesheet" href="vendor/suneditor/suneditor.min.css">
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="vendor/suneditor/suneditor.min.js"></script>
+  <script defer src="renderer.js"></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <header class="sidebar-header">
+      <h1>Notes</h1>
+      <div class="sidebar-actions">
+        <button id="new-note" type="button">New</button>
+        <button id="import-note" type="button">Import</button>
+      </div>
+    </header>
+    <ol id="note-list" aria-label="Local notes"></ol>
+  </aside>
+
+  <main class="workspace">
+    <header class="editor-header">
+      <input id="note-title" type="text" maxlength="500" aria-label="Note title" placeholder="Note title">
+      <span id="save-state" role="status"></span>
+      <button id="export-note" type="button">Export</button>
+      <button id="delete-note" type="button" class="danger">Delete</button>
+      <button id="save-note" type="button" class="primary">Save</button>
+    </header>
+    <section id="empty-state">
+      <h2>No note selected</h2>
+      <p>Create a local note or import an HTML/text file.</p>
+    </section>
+    <section id="editor-area" hidden>
+      <textarea id="editor"></textarea>
+    </section>
+  </main>
+</body>
+</html>

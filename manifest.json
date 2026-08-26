@@ -1,53 +1,68 @@
 {
-	"manifest_version": 2,
-	"name": "iOS IMAP Notes",
-	"description": "Edit IMAP Notes created by iOS devices within Thunderbird",
-	"version": "1.0.4",
-	"author": "Christian Eichert",
-	"developer": {
-		"name": "Christian Eichert, Jesse Lujack, John Bieling"
-	},
-	"default_locale": "en-US",
-	"browser_specific_settings": {
-		"gecko": {
-			"id": "iOSNotes@siliconvenice.net",
-			"strict_min_version": "128.0"
-		}
-	},
-	"options_ui": {
-		"page": "options/options.html"
-	},
-    "commands": {
-        "open-ios-editor": {
-            "suggested_key": {
-                "default": "Ctrl+Q"
-            },
-        "description": "Open the iOS notes editor"
-        },
-        "saveclose-ios-editor": {
-            "suggested_key": {
-                "default": "Alt+Q"
-            },
-        "description": "Save and close the note"
-        }
+  "manifest_version": 2,
+  "name": "__MSG_extName__",
+  "description": "__MSG_extDescription__",
+  "version": "1.1.0",
+  "author": "Christian Eichert",
+  "developer": {
+    "name": "Christian Eichert, Jesse Lujack, John Bieling"
+  },
+  "default_locale": "en-US",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "iOSNotes@siliconvenice.net",
+      "strict_min_version": "128.0"
+    }
+  },
+  "options_ui": {
+    "page": "options/options.html"
+  },
+  "commands": {
+    "open-ios-editor": {
+      "suggested_key": {
+        "default": "Ctrl+Q"
+      },
+      "description": "__MSG_editNote__"
     },
-	"background": {
-		"page": "background.html"
-	},
-	"icons": {
-		"48": "images/iOSNotes.png"
-	},
-	"permissions": [
-		"storage",
-		"menus",
-		"messagesRead",
-		"messagesMove",
-		"messagesImport",
-		"accountsRead",
-		"accountsFolders",
-		"messagesDelete"
-	  ]
+    "saveclose-ios-editor": {
+      "suggested_key": {
+        "default": "Alt+Q"
+      },
+      "description": "__MSG_saveNote__"
+    },
+    "new-ios-note": {
+      "suggested_key": {
+        "default": "Ctrl+Alt+N"
+      },
+      "description": "__MSG_newNote__"
+    }
+  },
+  "background": {
+    "page": "background.html"
+  },
+  "message_display_action": {
+    "default_title": "__MSG_editNote__",
+    "default_label": "__MSG_editNote__",
+    "default_icon": {
+      "16": "images/iOSNotes.png",
+      "32": "images/iOSNotes.png"
+    },
+    "type": "button"
+  },
+  "icons": {
+    "48": "images/iOSNotes.png"
+  },
+  "permissions": [
+    "accountsFolders",
+    "accountsRead",
+    "messagesRead",
+    "messagesImport",
+    "messagesMove",
+    "messagesDelete",
+    "menus",
+    "notifications",
+    "scripting",
+    "storage",
+    "tabs"
+  ]
 }
-
-
-
