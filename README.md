@@ -96,7 +96,7 @@ release must include the generated `.exe`, `.exe.blockmap` and `latest.yml` file
 
 ## Compatibility
 
-Version 1.3.0 targets Thunderbird 128 through 154. Because the Message Header
+Version 1.3.1 targets Thunderbird 128 through 154. Because the Message Header
 Toolbar integration uses a MailExtension Experiment, each new Thunderbird major
 version must be verified before its compatibility limit is raised. Older
 releases remain available for Thunderbird 115 and earlier extension behavior.

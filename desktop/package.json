@@ -1,7 +1,7 @@
 {
   "name": "ios-imap-notes-offline",
   "productName": "iOS IMAP Notes Offline",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Offline desktop notes editor companion for iOS IMAP Notes",
   "author": "Christian Eichert",
   "license": "GPL-3.0-only",
@@ -10,7 +10,7 @@
     "check": "node --check apple-note.js && node --check imap-service.js && node --check update-utils.js && node --check main.js && node --check preload.js && node --check renderer.js",
     "test": "node --test test/*.test.js",
     "dist:dir": "electron-builder --dir",
-    "dist:win": "electron-builder --win nsis",
+    "dist:win": "electron-builder --win nsis --publish never",
     "start": "electron ."
   },
   "devDependencies": {
