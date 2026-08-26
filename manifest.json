@@ -40,6 +40,16 @@
   "background": {
     "page": "background.html"
   },
+  "experiment_apis": {
+    "notesHeader": {
+      "schema": "experiments/notesHeader/schema.json",
+      "parent": {
+        "scopes": ["addon_parent"],
+        "script": "experiments/notesHeader/implementation.js",
+        "paths": [["notesHeader"]]
+      }
+    }
+  },
   "message_display_action": {
     "default_title": "__MSG_editNote__",
     "default_label": "__MSG_editNote__",

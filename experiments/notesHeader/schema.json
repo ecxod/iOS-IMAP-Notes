@@ -1,0 +1,41 @@
+[
+  {
+    "namespace": "notesHeader",
+    "description": "Apple Notes controls for Thunderbird's Message Header Toolbar.",
+    "functions": [
+      {
+        "name": "setNoteMode",
+        "type": "function",
+        "async": true,
+        "description": "Toggle the Apple Notes toolbar layout for a message display tab.",
+        "parameters": [
+          {
+            "name": "tabId",
+            "type": "integer"
+          },
+          {
+            "name": "enabled",
+            "type": "boolean"
+          },
+          {
+            "name": "newNoteLabel",
+            "type": "string"
+          }
+        ]
+      }
+    ],
+    "events": [
+      {
+        "name": "onNewNote",
+        "type": "function",
+        "description": "Fired when the New Apple note toolbar button is activated.",
+        "parameters": [
+          {
+            "name": "tabId",
+            "type": "integer"
+          }
+        ]
+      }
+    ]
+  }
+]

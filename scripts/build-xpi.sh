@@ -16,6 +16,7 @@ zip -q -r "$output_file" \
   background.js \
   LICENSE \
   _locales \
+  experiments \
   images \
   message-display \
   options \

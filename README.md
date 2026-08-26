@@ -12,8 +12,14 @@ The extension recognizes Apple Notes by their
 
 When an Apple Note is displayed, **Edit note** in the Message Header Toolbar
 enables editing directly inside the Message Body. During editing, the same
-action becomes **Save note**. For ordinary email messages, the button remains
-visible but disabled.
+action becomes **Save note**. The usual email actions in that toolbar are
+disabled for Apple Notes and a **New Apple note** button is added. For ordinary
+email messages, Thunderbird's normal actions are enabled again and **Edit note**
+remains visible but disabled.
+
+This conditional toolbar customization uses a narrowly scoped Experiment API.
+Thunderbird therefore describes the add-on permission as full access during
+installation; the Experiment only changes the Message Header Toolbar UI.
 
 A new Apple Note can be created in the currently selected writable folder by:
 

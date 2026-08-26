@@ -54,6 +54,16 @@ async function getNote(messageId) {
 }
 
 async function updateAction(tabId, appleNote, mode = "view") {
+  try {
+    await browser.notesHeader.setNoteMode(
+      tabId,
+      appleNote,
+      text("newNote", "New Apple note"),
+    );
+  } catch (error) {
+    console.error("Could not update the Apple Notes message header", error);
+  }
+
   if (!appleNote) {
     editingTabs.delete(tabId);
     await browser.messageDisplayAction.disable(tabId);
@@ -409,6 +419,14 @@ browser.messageDisplayAction.onClicked.addListener(async tab => {
     } else {
       await beginEditing(tab.id);
     }
+  } catch (error) {
+    await showError(error);
+  }
+});
+
+browser.notesHeader.onNewNote.addListener(async tabId => {
+  try {
+    await createNote({}, await browser.tabs.get(tabId));
   } catch (error) {
     await showError(error);
   }

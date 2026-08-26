@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build:xpi": "bash scripts/build-xpi.sh",
-    "check": "node --check background.js && node --check message-display/editor.js && node --check scripts/apple-note.mjs",
+    "check": "node --check background.js && node --check experiments/notesHeader/implementation.js && node --check message-display/editor.js && node --check scripts/apple-note.mjs",
     "test": "node --test tests/*.test.mjs"
   }
 }
