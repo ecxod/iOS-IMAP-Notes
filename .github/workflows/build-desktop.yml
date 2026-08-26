@@ -2,7 +2,7 @@ name: Build offline desktop app
 
 on:
   push:
-    branches: [main, master, develop]
+    branches: [main, master, develop, release-assets-v1.1.0]
     tags: ["v*"]
   pull_request:
     branches: [main, master]
@@ -48,8 +48,39 @@ jobs:
           if-no-files-found: error
 
       - name: Attach installer to tagged release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/release-assets-v1.1.0'
         uses: softprops/action-gh-release@v2
         with:
           files: desktop/dist/*.exe
           generate_release_notes: true
+          tag_name: v1.1.0
+
+  xpi:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check JavaScript
+        run: npm run check
+
+      - name: Test Apple Notes MIME handling
+        run: npm test
+
+      - name: Build XPI
+        run: npm run build:xpi
+
+      - name: Verify XPI
+        run: unzip -t dist/thunderbird-ios-imap-notes-1.1.0.xpi
+
+      - name: Attach XPI to v1.1.0 release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/thunderbird-ios-imap-notes-1.1.0.xpi
+          tag_name: v1.1.0
