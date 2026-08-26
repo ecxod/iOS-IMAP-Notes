@@ -12,8 +12,6 @@ const NATIVE_ACTION_IDS = [
   "hdrForwardButton",
   "hdrArchiveButton",
   "hdrJunkButton",
-  "hdrTrashButton",
-  "otherActionsButton",
   "starMessageButton",
 ];
 
@@ -45,8 +43,6 @@ function ensureStyle(document) {
     :root.${NOTE_MODE_CLASS} #hdrForwardButton,
     :root.${NOTE_MODE_CLASS} #hdrArchiveButton,
     :root.${NOTE_MODE_CLASS} #hdrJunkButton,
-    :root.${NOTE_MODE_CLASS} #hdrTrashButton,
-    :root.${NOTE_MODE_CLASS} #otherActionsButton,
     :root.${NOTE_MODE_CLASS} #starMessageButton {
       opacity: 0.5 !important;
       pointer-events: none !important;
@@ -136,6 +132,13 @@ function ensureNewNoteButton(context, document, tabId, label) {
         callback(tabId);
       }
     });
+  }
+
+  const toolbar = document.getElementById("header-view-toolbar");
+  const moreButton = document.getElementById("otherActionsButton");
+  if (toolbar && moreButton?.parentNode === toolbar) {
+    toolbar.insertBefore(button, moreButton);
+  } else if (toolbar && button.parentNode !== toolbar) {
     toolbar.append(button);
   }
 

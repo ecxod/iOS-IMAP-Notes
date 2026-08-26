@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   APPLE_NOTE_UTI,
   createAppleNoteDocument,
+  getAppleNoteRevision,
+  getAppleNoteUuid,
   isAppleNote,
   parseAppleNote,
   replaceAppleNoteBody,
@@ -39,6 +41,24 @@ test("waits for a newly imported IMAP note to become readable", async () => {
   assert.equal(reads, 3);
   assert.equal(loaded.parsed.subject, "Shopping");
   assert.equal(loaded.parsed.bodyHtml, "New note<div><br></div>");
+});
+
+test("creates a stable revision and detects concurrent note changes", () => {
+  const original = noteMessage("Shopping<div>Milk</div>");
+  original.headers["message-id"] = ["<revision-1@example.invalid>"];
+  original.headers.date = ["Wed, 26 Aug 2026 15:25:45 GMT"];
+  original.headers["x-universally-unique-identifier"] = ["abc-def"];
+
+  const same = structuredClone(original);
+  const changedBody = structuredClone(original);
+  changedBody.parts[0].body = "Shopping<div>Milk and bread</div>";
+  const changedMessage = structuredClone(original);
+  changedMessage.headers["message-id"] = ["<revision-2@example.invalid>"];
+
+  assert.equal(getAppleNoteUuid(original), "ABC-DEF");
+  assert.equal(getAppleNoteRevision(same), getAppleNoteRevision(original));
+  assert.notEqual(getAppleNoteRevision(changedBody), getAppleNoteRevision(original));
+  assert.notEqual(getAppleNoteRevision(changedMessage), getAppleNoteRevision(original));
 });
 
 test("keeps the complete HTML wrapper while replacing the message body", () => {

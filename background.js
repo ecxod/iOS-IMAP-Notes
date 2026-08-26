@@ -2,6 +2,8 @@ import { getPref } from "./options/defaults.mjs";
 import {
   APPLE_NOTE_UTI,
   createAppleNoteDocument,
+  getAppleNoteRevision,
+  getAppleNoteUuid,
   isAppleNote,
   replaceAppleNoteBody,
   waitForAppleNote,
@@ -10,8 +12,9 @@ import {
 const EDIT_MENU_ID = "iosNotesEdit";
 const NEW_NOTE_MENU_ID = "iosNotesNew";
 const DISPLAY_SCRIPT_ID = "ios-imap-notes-message-editor";
-const editingTabs = new Set();
+const editingTabs = new Map();
 const pendingAutoEdit = new Map();
+const savingTabs = new Set();
 
 function text(key, fallback) {
   return browser.i18n.getMessage(key) || fallback;
@@ -59,7 +62,7 @@ async function updateAction(tabId, appleNote, mode = "view") {
     await browser.notesHeader.setNoteMode(
       tabId,
       appleNote,
-      text("newNote", "New Apple note"),
+      text("newNote", "New note"),
     );
   } catch (error) {
     console.error("Could not update the Apple Notes message header", error);
@@ -101,8 +104,18 @@ async function refreshDisplayedMessage(tab, message) {
     }
     const full = await browser.messages.getFull(message.id);
     const appleNote = isAppleNote(full);
-    editingTabs.delete(tab.id);
-    await updateAction(tab.id, appleNote);
+    const alreadyEditing = isSameMessage(editingTabs.get(tab.id), message);
+    if (!alreadyEditing) {
+      editingTabs.delete(tab.id);
+    }
+    await updateAction(tab.id, appleNote, alreadyEditing ? "edit" : "view");
+    if (appleNote && !alreadyEditing) {
+      try {
+        await beginEditing(tab.id, message, { attempts: 8, delayMs: 250 });
+      } catch (error) {
+        console.debug("Waiting for the Apple note message display script", error);
+      }
+    }
   } catch (error) {
     console.error("Could not inspect displayed message", error);
     await updateAction(tab.id, false);
@@ -159,7 +172,16 @@ async function beginEditing(tabId, message = null, options = {}) {
       subject: note.parsed.subject,
     },
   });
-  editingTabs.add(tabId);
+  editingTabs.set(tabId, {
+    author: note.header.author,
+    folderId: note.header.folder.id,
+    id: displayed.id,
+    headerMessageId: displayed.headerMessageId,
+    messageDate: note.header.date,
+    openedAt: new Date(),
+    revision: getAppleNoteRevision(note.full),
+    uuid: getAppleNoteUuid(note.full),
+  });
   await updateAction(tabId, true, "edit");
   return true;
 }
@@ -303,6 +325,8 @@ async function saveNote(tabId, bodyHtml, subject) {
     throw new Error(text("noiOSNote", "This does not appear to be a valid Apple note."));
   }
 
+  await assertNoteUnchanged(tabId, displayed, note);
+
   const currentUuid = note.full.headers["x-universally-unique-identifier"]?.[0];
   const identity = uniqueHeaders({
     subject,
@@ -328,6 +352,50 @@ async function saveNote(tabId, bodyHtml, subject) {
     console.debug("The updated note could not be selected in this tab", error);
   }
   return updated;
+}
+
+async function assertNoteUnchanged(tabId, displayed, note) {
+  const editState = editingTabs.get(tabId);
+  const conflictMessage = text(
+    "noteChangedConflict",
+    "This note changed after it was opened and was not overwritten. Close the editor and open the current version again.",
+  );
+  if (
+    !editState ||
+    !isSameMessage(editState, displayed) ||
+    editState.revision !== getAppleNoteRevision(note.full)
+  ) {
+    throw new Error(conflictMessage);
+  }
+
+  const messageTime = new Date(editState.messageDate).getTime();
+  const fromTime = Number.isFinite(messageTime)
+    ? messageTime - 1_000
+    : editState.openedAt.getTime() - 60_000;
+  const query = {
+    folderId: editState.folderId,
+    fromDate: new Date(fromTime),
+  };
+  if (editState.author) {
+    query.author = editState.author;
+  }
+
+  let page = await browser.messages.query(query);
+  while (page) {
+    for (const candidate of page.messages) {
+      if (candidate.id === displayed.id) {
+        continue;
+      }
+      const candidateFull = await browser.messages.getFull(candidate.id);
+      if (
+        isAppleNote(candidateFull) &&
+        getAppleNoteUuid(candidateFull) === editState.uuid
+      ) {
+        throw new Error(conflictMessage);
+      }
+    }
+    page = page.id ? await browser.messages.continueList(page.id) : null;
+  }
 }
 
 async function getFolderAddress(folder) {
@@ -397,10 +465,10 @@ async function handleRuntimeMessage(message, sender) {
       }
       return { ok: true };
     }
-    case "notes:editing-started":
-      editingTabs.add(tabId);
+    case "notes:editing-started": {
       await updateAction(tabId, true, "edit");
       return { ok: true };
+    }
     case "notes:editing-finished": {
       editingTabs.delete(tabId);
       const displayed = await getDisplayedMessage(tabId);
@@ -408,12 +476,21 @@ async function handleRuntimeMessage(message, sender) {
       return { ok: true };
     }
     case "notes:save":
+      if (savingTabs.has(tabId)) {
+        return {
+          ok: false,
+          error: text("saveInProgress", "This note is already being saved."),
+        };
+      }
+      savingTabs.add(tabId);
       try {
         const updated = await saveNote(tabId, message.bodyHtml, message.subject);
         return { ok: true, messageId: updated.id };
       } catch (error) {
         console.error("Could not save Apple note", error);
         return { ok: false, error: errorMessage(error) };
+      } finally {
+        savingTabs.delete(tabId);
       }
     default:
       return undefined;
@@ -526,7 +603,7 @@ async function init() {
   });
   browser.menus.create({
     id: NEW_NOTE_MENU_ID,
-    title: text("newNote", "New Apple note"),
+    title: text("newNote", "New note"),
     contexts: ["folder_pane", "message_list"],
   });
 }

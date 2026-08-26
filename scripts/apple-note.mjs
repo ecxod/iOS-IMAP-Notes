@@ -64,6 +64,29 @@ export function parseAppleNote(fullMessage) {
   };
 }
 
+export function getAppleNoteUuid(fullMessage) {
+  const uuid = firstHeader(
+    fullMessage?.headers,
+    "x-universally-unique-identifier",
+  );
+  return uuid == null ? "" : String(uuid).trim().toUpperCase();
+}
+
+export function getAppleNoteRevision(fullMessage) {
+  const parsed = parseAppleNote(fullMessage);
+  if (!parsed) {
+    return null;
+  }
+  return JSON.stringify([
+    firstHeader(fullMessage.headers, "message-id") || "",
+    firstHeader(fullMessage.headers, "date") || "",
+    firstHeader(fullMessage.headers, "x-mail-created-date") || "",
+    getAppleNoteUuid(fullMessage),
+    parsed.subject,
+    replaceAppleNoteBody(parsed, parsed.bodyHtml),
+  ]);
+}
+
 export async function waitForAppleNote(
   loadMessage,
   { attempts = 1, delayMs = 250 } = {},

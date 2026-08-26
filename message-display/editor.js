@@ -57,7 +57,7 @@
   }
 
   async function save() {
-    if (!editorState) {
+    if (!editorState || editorState.shell.dataset.busy === "true") {
       return;
     }
 
