@@ -2,7 +2,7 @@ package net.zp1.iosimapnotes.model;
 
 public final class Note {
     public String id = "";
-    public long accountId = Account.DEFAULT_ID;
+    public long accountId;
     public String title = "";
     public String bodyHtml = "";
     public long updatedAt;

@@ -14,7 +14,7 @@ import java.util.List;
 
 public final class AppDatabase extends SQLiteOpenHelper {
     private static final String NAME = "ios-imap-notes.db";
-    private static final int VERSION = 1;
+    private static final int VERSION = 2;
 
     public AppDatabase(Context context) {
         super(context.getApplicationContext(), NAME, null, VERSION);
@@ -24,7 +24,8 @@ public final class AppDatabase extends SQLiteOpenHelper {
     public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE account ("
                 + "id INTEGER PRIMARY KEY, name TEXT NOT NULL, host TEXT NOT NULL, port INTEGER NOT NULL, "
-                + "security TEXT NOT NULL, username TEXT NOT NULL, mailbox TEXT NOT NULL)");
+                + "security TEXT NOT NULL, authentication TEXT NOT NULL DEFAULT 'auto', "
+                + "username TEXT NOT NULL, mailbox TEXT NOT NULL)");
         db.execSQL("CREATE TABLE note ("
                 + "id TEXT PRIMARY KEY, account_id INTEGER NOT NULL, title TEXT NOT NULL, body_html TEXT NOT NULL, "
                 + "updated_at INTEGER NOT NULL, mailbox TEXT NOT NULL, uid INTEGER NOT NULL, uid_validity INTEGER NOT NULL, "
@@ -35,41 +36,67 @@ public final class AppDatabase extends SQLiteOpenHelper {
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        throw new IllegalStateException("Unerwartete Datenbankversion " + oldVersion);
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE account ADD COLUMN authentication TEXT NOT NULL DEFAULT 'auto'");
+        }
     }
 
-    public synchronized Account getAccount() {
+    public synchronized Account getAccount(long id) {
         try (Cursor cursor = getReadableDatabase().query(
-                "account", null, "id = ?", new String[]{String.valueOf(Account.DEFAULT_ID)},
+                "account", null, "id = ?", new String[]{String.valueOf(id)},
                 null, null, null
         )) {
             if (!cursor.moveToFirst()) {
                 return null;
             }
-            Account account = new Account();
-            account.id = cursor.getLong(cursor.getColumnIndexOrThrow("id"));
-            account.name = cursor.getString(cursor.getColumnIndexOrThrow("name"));
-            account.host = cursor.getString(cursor.getColumnIndexOrThrow("host"));
-            account.port = cursor.getInt(cursor.getColumnIndexOrThrow("port"));
-            account.security = cursor.getString(cursor.getColumnIndexOrThrow("security"));
-            account.username = cursor.getString(cursor.getColumnIndexOrThrow("username"));
-            account.mailbox = cursor.getString(cursor.getColumnIndexOrThrow("mailbox"));
-            return account;
+            return readAccount(cursor);
         }
     }
 
-    public synchronized void saveAccount(Account account) {
+    public synchronized List<Account> listAccounts() {
+        List<Account> result = new ArrayList<>();
+        try (Cursor cursor = getReadableDatabase().query(
+                "account", null, null, null, null, null, "name COLLATE NOCASE ASC, id ASC"
+        )) {
+            while (cursor.moveToNext()) {
+                result.add(readAccount(cursor));
+            }
+        }
+        return result;
+    }
+
+    public synchronized long saveAccount(Account account) {
         ContentValues values = new ContentValues();
-        values.put("id", account.id);
+        if (account.id > 0) {
+            values.put("id", account.id);
+        }
         values.put("name", account.name);
         values.put("host", account.host);
         values.put("port", account.port);
         values.put("security", account.security);
+        values.put("authentication", account.authentication);
         values.put("username", account.username);
         values.put("mailbox", account.mailbox);
-        getWritableDatabase().insertWithOnConflict(
+        long id = getWritableDatabase().insertWithOnConflict(
                 "account", null, values, SQLiteDatabase.CONFLICT_REPLACE
         );
+        if (id < 0) {
+            throw new IllegalStateException("Das IMAP-Konto konnte nicht gespeichert werden.");
+        }
+        account.id = id;
+        return id;
+    }
+
+    public synchronized void deleteAccount(long accountId) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            db.delete("note", "account_id = ?", new String[]{String.valueOf(accountId)});
+            db.delete("account", "id = ?", new String[]{String.valueOf(accountId)});
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
     }
 
     public synchronized List<Note> listNotes() {
@@ -134,6 +161,19 @@ public final class AppDatabase extends SQLiteOpenHelper {
         values.put("read_only", note.readOnly ? 1 : 0);
         values.put("unsupported_reason", note.unsupportedReason);
         return values;
+    }
+
+    private static Account readAccount(Cursor cursor) {
+        Account account = new Account();
+        account.id = cursor.getLong(cursor.getColumnIndexOrThrow("id"));
+        account.name = cursor.getString(cursor.getColumnIndexOrThrow("name"));
+        account.host = cursor.getString(cursor.getColumnIndexOrThrow("host"));
+        account.port = cursor.getInt(cursor.getColumnIndexOrThrow("port"));
+        account.security = cursor.getString(cursor.getColumnIndexOrThrow("security"));
+        account.authentication = cursor.getString(cursor.getColumnIndexOrThrow("authentication"));
+        account.username = cursor.getString(cursor.getColumnIndexOrThrow("username"));
+        account.mailbox = cursor.getString(cursor.getColumnIndexOrThrow("mailbox"));
+        return account;
     }
 
     private static Note readNote(Cursor cursor) {

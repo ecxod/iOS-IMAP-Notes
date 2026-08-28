@@ -48,6 +48,9 @@
             <TextView style="@style/FormLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/security" />
             <Spinner android:id="@+id/securitySpinner" android:layout_width="match_parent" android:layout_height="48dp" />
 
+            <TextView style="@style/FormLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/authentication" />
+            <Spinner android:id="@+id/authenticationSpinner" android:layout_width="match_parent" android:layout_height="48dp" />
+
             <TextView style="@style/FormLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/port" />
             <EditText android:id="@+id/portField" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="number" android:maxLines="1" />
 
@@ -72,6 +75,14 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/save_and_connect" />
+
+            <Button
+                android:id="@+id/deleteAccountButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/delete_account"
+                android:textColor="@color/danger"
+                android:visibility="gone" />
 
             <ProgressBar
                 android:id="@+id/accountProgress"

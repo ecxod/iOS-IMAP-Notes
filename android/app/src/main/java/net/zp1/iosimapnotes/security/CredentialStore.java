@@ -18,7 +18,8 @@ public final class CredentialStore {
     private static final String KEYSTORE = "AndroidKeyStore";
     private static final String KEY_ALIAS = "ios-imap-notes-password-v1";
     private static final String PREFS = "encrypted_credentials";
-    private static final String PASSWORD = "imap_password";
+    private static final String LEGACY_PASSWORD = "imap_password";
+    private static final String PASSWORD_PREFIX = "imap_password_";
 
     private final SharedPreferences preferences;
 
@@ -26,20 +27,27 @@ public final class CredentialStore {
         preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
-    public void savePassword(String password) throws Exception {
+    public void savePassword(long accountId, String password) throws Exception {
         SecretKey key = getOrCreateKey();
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
         cipher.init(Cipher.ENCRYPT_MODE, key);
         byte[] encrypted = cipher.doFinal(password.getBytes(StandardCharsets.UTF_8));
         String value = Base64.encodeToString(cipher.getIV(), Base64.NO_WRAP)
                 + ":" + Base64.encodeToString(encrypted, Base64.NO_WRAP);
-        if (!preferences.edit().putString(PASSWORD, value).commit()) {
+        if (!preferences.edit().putString(passwordKey(accountId), value).commit()) {
             throw new IllegalStateException("Das Passwort konnte nicht gespeichert werden.");
         }
     }
 
-    public String getPassword() throws Exception {
-        String value = preferences.getString(PASSWORD, "");
+    public String getPassword(long accountId) throws Exception {
+        String key = passwordKey(accountId);
+        String value = preferences.getString(key, "");
+        if ((value == null || value.isEmpty()) && accountId == 1L) {
+            value = preferences.getString(LEGACY_PASSWORD, "");
+            if (value != null && !value.isEmpty()) {
+                preferences.edit().putString(key, value).remove(LEGACY_PASSWORD).apply();
+            }
+        }
         if (value == null || value.isEmpty()) {
             return "";
         }
@@ -57,13 +65,27 @@ public final class CredentialStore {
         return new String(decrypted, StandardCharsets.UTF_8);
     }
 
-    public boolean hasPassword() {
-        String value = preferences.getString(PASSWORD, "");
+    public boolean hasPassword(long accountId) {
+        String value = preferences.getString(passwordKey(accountId), "");
+        if ((value == null || value.isEmpty()) && accountId == 1L) {
+            value = preferences.getString(LEGACY_PASSWORD, "");
+        }
         return value != null && !value.isEmpty();
     }
 
-    public void clear() {
-        preferences.edit().remove(PASSWORD).apply();
+    public void clear(long accountId) {
+        SharedPreferences.Editor editor = preferences.edit().remove(passwordKey(accountId));
+        if (accountId == 1L) {
+            editor.remove(LEGACY_PASSWORD);
+        }
+        editor.apply();
+    }
+
+    private static String passwordKey(long accountId) {
+        if (accountId <= 0) {
+            throw new IllegalArgumentException("Ungültige Konto-ID.");
+        }
+        return PASSWORD_PREFIX + accountId;
     }
 
     private SecretKey getOrCreateKey() throws Exception {

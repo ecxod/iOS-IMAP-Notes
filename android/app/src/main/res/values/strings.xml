@@ -3,16 +3,27 @@
     <string name="app_name">iOS IMAP Notes</string>
     <string name="add_short">Neu</string>
     <string name="sync_short">Sync</string>
-    <string name="settings_short">Konto</string>
+    <string name="settings_short">Propr.</string>
     <string name="back_short">Zurück</string>
     <string name="search_hint">Notizen durchsuchen</string>
     <string name="offline_cache_hint">Gespeicherte Notizen sind auch offline lesbar.</string>
     <string name="no_notes">Noch keine Notizen. Richte ein Konto ein oder synchronisiere den Notes-Ordner.</string>
     <string name="account_title">IMAP-Konto</string>
+    <string name="properties_title">Eigenschaften</string>
+    <string name="imap_accounts">IMAP-Konten</string>
+    <string name="no_accounts">Noch kein IMAP-Konto eingerichtet.</string>
+    <string name="account_required">Bitte zuerst mindestens ein IMAP-Konto einrichten.</string>
+    <string name="account_details">%1$s · %2$s\n%3$s · %4$s</string>
+    <string name="add_account">IMAP-Konto hinzufügen</string>
+    <string name="app_update">App-Update</string>
+    <string name="current_version">Installierte Version: %1$s</string>
+    <string name="check_update">Auf GitHub nach Update suchen</string>
+    <string name="update_hint">Updates werden als signierte APK von GitHub geladen und vor der Installation geprüft.</string>
     <string name="account_name">Kontoname</string>
     <string name="account_name_hint">Mein Notizkonto</string>
     <string name="host">IMAP-Server</string>
     <string name="security">Verbindungssicherheit</string>
+    <string name="authentication">Authentifizierung</string>
     <string name="port">Port</string>
     <string name="username">Benutzername</string>
     <string name="password">Passwort oder App-Passwort</string>
@@ -20,15 +31,26 @@
     <string name="mailbox">Notes-Ordner</string>
     <string name="load_folders">Verbindung testen und Ordner laden</string>
     <string name="save_and_connect">Speichern und synchronisieren</string>
+    <string name="delete_account">Konto aus der App entfernen</string>
+    <string name="default_account_name">Meine Notizen</string>
+    <string name="default_tls_port">993</string>
+    <string name="default_mailbox">Notes</string>
     <string name="editor_title">Notiz</string>
     <string name="save">Speichern</string>
     <string name="note_title_hint">Titel</string>
     <string name="bold">Fett</string>
     <string name="italic">Kursiv</string>
-    <string name="underline">Unterstr.</string>
+    <string name="underline">Unterstreichen</string>
+    <string name="language_auto">Spr.: Auto</string>
     <string name="delete">Löschen</string>
     <string-array name="security_modes">
         <item>SSL/TLS (Port 993)</item>
         <item>STARTTLS (Port 143)</item>
+    </string-array>
+    <string-array name="authentication_modes">
+        <item>Automatisch</item>
+        <item>CRAM-MD5</item>
+        <item>PLAIN</item>
+        <item>LOGIN</item>
     </string-array>
 </resources>

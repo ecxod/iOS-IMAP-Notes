@@ -2,9 +2,12 @@ package net.zp1.iosimapnotes.ui;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Typeface;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.LocaleList;
 import android.text.Editable;
 import android.text.Html;
 import android.text.Spanned;
@@ -17,6 +20,7 @@ import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.view.inputmethod.InputMethodManager;
 
 import net.zp1.iosimapnotes.R;
 import net.zp1.iosimapnotes.data.AppDatabase;
@@ -25,8 +29,17 @@ import net.zp1.iosimapnotes.model.Account;
 import net.zp1.iosimapnotes.model.Note;
 import net.zp1.iosimapnotes.security.CredentialStore;
 
+import java.util.Locale;
+
 public final class EditorActivity extends Activity {
     public static final String EXTRA_NOTE_ID = "note_id";
+    public static final String EXTRA_ACCOUNT_ID = "account_id";
+    private static final String EDITOR_PREFERENCES = "editor_preferences";
+    private static final String SPELL_LANGUAGE = "spell_language";
+    private static final String[] LANGUAGE_LABELS = {
+            "Systemsprache", "Deutsch", "English", "Română", "Français", "Italiano", "Español"
+    };
+    private static final String[] LANGUAGE_TAGS = {"", "de", "en", "ro", "fr", "it", "es"};
 
     private AppDatabase database;
     private CredentialStore credentialStore;
@@ -38,6 +51,8 @@ public final class EditorActivity extends Activity {
     private ProgressBar progress;
     private TextView status;
     private Note note;
+    private Account account;
+    private Button languageButton;
     private boolean loading = true;
     private boolean dirty;
     private boolean busy;
@@ -54,6 +69,7 @@ public final class EditorActivity extends Activity {
         deleteButton = findViewById(R.id.deleteButton);
         progress = findViewById(R.id.editorProgress);
         status = findViewById(R.id.editorStatus);
+        languageButton = findViewById(R.id.languageButton);
 
         String noteId = getIntent().getStringExtra(EXTRA_NOTE_ID);
         note = noteId == null ? null : database.getNote(noteId);
@@ -62,6 +78,16 @@ public final class EditorActivity extends Activity {
             finish();
             return;
         }
+        long accountId = note != null
+                ? note.accountId
+                : getIntent().getLongExtra(EXTRA_ACCOUNT_ID, 0L);
+        account = accountId > 0 ? database.getAccount(accountId) : null;
+        if (account == null) {
+            Toast.makeText(this, "Das IMAP-Konto dieser Notiz wurde nicht gefunden.", Toast.LENGTH_LONG).show();
+            finish();
+            return;
+        }
+        ((TextView) findViewById(R.id.editorHeader)).setText(account.name);
         if (note != null) {
             titleField.setText(note.title);
             bodyField.setText(fromHtml(note.bodyHtml));
@@ -91,6 +117,8 @@ public final class EditorActivity extends Activity {
         findViewById(R.id.boldButton).setOnClickListener(view -> applySpan(new StyleSpan(Typeface.BOLD)));
         findViewById(R.id.italicButton).setOnClickListener(view -> applySpan(new StyleSpan(Typeface.ITALIC)));
         findViewById(R.id.underlineButton).setOnClickListener(view -> applySpan(new UnderlineSpan()));
+        languageButton.setOnClickListener(view -> chooseLanguage());
+        applyLanguage(getPreferences().getString(SPELL_LANGUAGE, ""));
     }
 
     private void setReadOnly(String reason) {
@@ -119,7 +147,6 @@ public final class EditorActivity extends Activity {
 
     private void save() {
         if (busy) return;
-        Account account = database.getAccount();
         if (account == null) {
             Toast.makeText(this, "Bitte zuerst das IMAP-Konto einrichten.", Toast.LENGTH_LONG).show();
             return;
@@ -134,7 +161,7 @@ public final class EditorActivity extends Activity {
         setBusy(true, "Notiz wird sicher gespeichert …");
         AppTasks.IO.execute(() -> {
             try {
-                String password = credentialStore.getPassword();
+                String password = credentialStore.getPassword(account.id);
                 if (note == null) {
                     Note created = repository.create(account, password, title, bodyHtml);
                     database.saveNote(created);
@@ -175,12 +202,11 @@ public final class EditorActivity extends Activity {
     }
 
     private void deleteNote() {
-        Account account = database.getAccount();
         if (account == null || note == null) return;
         setBusy(true, "Notiz wird gelöscht …");
         AppTasks.IO.execute(() -> {
             try {
-                repository.delete(account, credentialStore.getPassword(), note);
+                repository.delete(account, credentialStore.getPassword(account.id), note);
                 database.deleteNote(note.id);
                 runOnUiThread(() -> {
                     dirty = false;
@@ -219,6 +245,50 @@ public final class EditorActivity extends Activity {
                 .setPositiveButton("Verwerfen", (dialog, which) -> finish())
                 .setNegativeButton("Weiter bearbeiten", null)
                 .show();
+    }
+
+    private void chooseLanguage() {
+        String selectedTag = getPreferences().getString(SPELL_LANGUAGE, "");
+        int selected = 0;
+        for (int index = 0; index < LANGUAGE_TAGS.length; index++) {
+            if (LANGUAGE_TAGS[index].equals(selectedTag)) {
+                selected = index;
+                break;
+            }
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("Sprache der Rechtschreibprüfung")
+                .setSingleChoiceItems(LANGUAGE_LABELS, selected, (dialog, which) -> {
+                    String tag = LANGUAGE_TAGS[which];
+                    getPreferences().edit().putString(SPELL_LANGUAGE, tag).apply();
+                    applyLanguage(tag);
+                    dialog.dismiss();
+                })
+                .setNegativeButton("Abbrechen", null)
+                .show();
+    }
+
+    private void applyLanguage(String tag) {
+        Locale locale = tag == null || tag.isEmpty() ? Locale.getDefault() : Locale.forLanguageTag(tag);
+        titleField.setTextLocale(locale);
+        bodyField.setTextLocale(locale);
+        if (Build.VERSION.SDK_INT >= 24) {
+            LocaleList locales = new LocaleList(locale);
+            titleField.setImeHintLocales(locales);
+            bodyField.setImeHintLocales(locales);
+        }
+        languageButton.setText(tag == null || tag.isEmpty()
+                ? "Spr.: Auto"
+                : "Spr.: " + locale.getLanguage().toUpperCase(Locale.ROOT));
+        InputMethodManager input = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (input != null) {
+            input.restartInput(titleField);
+            input.restartInput(bodyField);
+        }
+    }
+
+    private SharedPreferences getPreferences() {
+        return getSharedPreferences(EDITOR_PREFERENCES, MODE_PRIVATE);
     }
 
     @Override

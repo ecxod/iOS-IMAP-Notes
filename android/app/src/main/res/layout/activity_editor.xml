@@ -43,10 +43,13 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="@string/note_title_hint"
-        android:inputType="textCapSentences"
+        android:gravity="top|start"
+        android:inputType="textCapSentences|textMultiLine"
         android:maxLength="500"
-        android:maxLines="2"
+        android:maxLines="4"
+        android:minLines="1"
         android:padding="14dp"
+        android:scrollHorizontally="false"
         android:textSize="22sp"
         android:textStyle="bold" />
 
@@ -60,9 +63,37 @@
         android:paddingStart="8dp"
         android:paddingEnd="8dp">
 
-        <Button android:id="@+id/boldButton" android:layout_width="wrap_content" android:layout_height="48dp" android:text="@string/bold" android:textStyle="bold" />
-        <Button android:id="@+id/italicButton" android:layout_width="wrap_content" android:layout_height="48dp" android:text="@string/italic" android:textStyle="italic" />
-        <Button android:id="@+id/underlineButton" android:layout_width="wrap_content" android:layout_height="48dp" android:text="@string/underline" />
+        <ImageButton
+            android:id="@+id/boldButton"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:contentDescription="@string/bold"
+            android:padding="12dp"
+            android:src="@drawable/ic_format_bold" />
+        <ImageButton
+            android:id="@+id/italicButton"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:contentDescription="@string/italic"
+            android:padding="12dp"
+            android:src="@drawable/ic_format_italic" />
+        <ImageButton
+            android:id="@+id/underlineButton"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:contentDescription="@string/underline"
+            android:padding="12dp"
+            android:src="@drawable/ic_format_underline" />
+        <Button
+            android:id="@+id/languageButton"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:minWidth="56dp"
+            android:text="@string/language_auto" />
         <Space android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
         <Button android:id="@+id/deleteButton" android:layout_width="wrap_content" android:layout_height="48dp" android:text="@string/delete" android:textColor="@color/danger" />
     </LinearLayout>
@@ -73,7 +104,7 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:gravity="top|start"
-        android:inputType="textCapSentences|textMultiLine"
+        android:inputType="textAutoCorrect|textCapSentences|textLongMessage|textMultiLine"
         android:padding="16dp"
         android:scrollbars="vertical"
         android:textSize="17sp" />

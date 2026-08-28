@@ -159,6 +159,16 @@ public final class ImapRepository {
             properties.setProperty("mail.imaps.ssl.enable", "true");
         }
 
+        String protocol = account.usesStartTls() ? "imap" : "imaps";
+        if (Account.AUTH_CRAM_MD5.equals(account.authentication)) {
+            properties.setProperty("mail." + protocol + ".sasl.enable", "true");
+            properties.setProperty("mail." + protocol + ".sasl.mechanisms", "CRAM-MD5");
+        } else if (Account.AUTH_PLAIN.equals(account.authentication)) {
+            properties.setProperty("mail." + protocol + ".auth.mechanisms", "PLAIN");
+        } else if (Account.AUTH_LOGIN.equals(account.authentication)) {
+            properties.setProperty("mail." + protocol + ".auth.mechanisms", "LOGIN");
+        }
+
         Session session = Session.getInstance(properties);
         Store store = session.getStore(account.usesStartTls() ? "imap" : "imaps");
         try {

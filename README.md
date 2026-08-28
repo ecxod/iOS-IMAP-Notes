@@ -12,8 +12,16 @@ This project provides two editors for Apple Notes stored as IMAP messages:
 The native Android client is in `android/`. It connects directly to an IMAP
 server over certificate-validated TLS, stores the password encrypted by the
 Android Keystore and keeps a local SQLite cache so synchronized notes remain
-readable offline. It supports account setup with mailbox discovery, note search,
-creation, editing with basic formatting, deletion and manual synchronization.
+readable offline. It supports multiple IMAP accounts, mailbox discovery,
+selectable automatic, CRAM-MD5, PLAIN or LOGIN authentication, note search,
+creation, editing with icon-based basic formatting, selectable spell-check
+language, deletion and manual synchronization.
+
+The **Propr.** screen manages the IMAP accounts and checks GitHub Releases for
+new Android versions. An update is accepted only when its package name and
+release-certificate SHA-256 fingerprint match the installed application;
+Android still displays its normal installation approval. Release APK assets
+must be named `ios-imap-notes-android-<version>.apk`.
 
 Saving uses the same Apple headers and UUID as the Thunderbird and desktop
 editors. It verifies IMAP UIDVALIDITY, UID and the raw source revision before it

@@ -31,12 +31,14 @@ public final class MainActivity extends Activity {
     private CredentialStore credentialStore;
     private final ImapRepository repository = new ImapRepository();
     private final List<Note> allNotes = new ArrayList<>();
+    private final List<Account> accounts = new ArrayList<>();
     private NoteAdapter adapter;
     private ProgressBar progress;
     private TextView status;
     private EditText search;
     private Button addButton;
     private Button syncButton;
+    private Button propertiesButton;
     private boolean firstResume = true;
 
     @Override
@@ -52,6 +54,7 @@ public final class MainActivity extends Activity {
         search = findViewById(R.id.searchField);
         addButton = findViewById(R.id.addButton);
         syncButton = findViewById(R.id.syncButton);
+        propertiesButton = findViewById(R.id.settingsButton);
         ListView list = findViewById(R.id.noteList);
         list.setAdapter(adapter);
         list.setEmptyView(findViewById(R.id.emptyText));
@@ -61,10 +64,10 @@ public final class MainActivity extends Activity {
             startActivity(intent);
         });
 
-        addButton.setOnClickListener(view -> startActivity(new Intent(this, EditorActivity.class)));
+        addButton.setOnClickListener(view -> createNote());
         syncButton.setOnClickListener(view -> synchronize());
-        findViewById(R.id.settingsButton).setOnClickListener(
-                view -> startActivityForResult(new Intent(this, AccountActivity.class), REQUEST_ACCOUNT)
+        propertiesButton.setOnClickListener(
+                view -> startActivityForResult(new Intent(this, PropertiesActivity.class), REQUEST_ACCOUNT)
         );
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
@@ -76,14 +79,16 @@ public final class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        accounts.clear();
+        accounts.addAll(database.listAccounts());
+        adapter.setAccounts(accounts);
         loadCache();
-        Account account = database.getAccount();
-        addButton.setEnabled(account != null);
-        syncButton.setEnabled(account != null);
-        if (account == null) {
-            status.setText("Bitte zuerst ein IMAP-Konto einrichten.");
+        addButton.setEnabled(!accounts.isEmpty());
+        syncButton.setEnabled(!accounts.isEmpty());
+        if (accounts.isEmpty()) {
+            status.setText(R.string.account_required);
             if (firstResume) {
-                startActivityForResult(new Intent(this, AccountActivity.class), REQUEST_ACCOUNT);
+                startActivityForResult(new Intent(this, PropertiesActivity.class), REQUEST_ACCOUNT);
             }
         } else if (firstResume && allNotes.isEmpty()) {
             synchronize();
@@ -131,19 +136,41 @@ public final class MainActivity extends Activity {
     }
 
     private void synchronize() {
-        Account account = database.getAccount();
-        if (account == null) {
-            startActivityForResult(new Intent(this, AccountActivity.class), REQUEST_ACCOUNT);
+        List<Account> currentAccounts = database.listAccounts();
+        if (currentAccounts.isEmpty()) {
+            startActivityForResult(new Intent(this, PropertiesActivity.class), REQUEST_ACCOUNT);
             return;
         }
         setBusy(true, "Synchronisierung läuft …");
         AppTasks.IO.execute(() -> {
             try {
-                String password = credentialStore.getPassword();
-                List<Note> notes = repository.synchronize(account, password);
-                database.replaceNotes(account.id, notes);
+                int synchronizedAccounts = 0;
+                int synchronizedNotes = 0;
+                List<String> failures = new ArrayList<>();
+                for (Account account : currentAccounts) {
+                    try {
+                        String password = credentialStore.getPassword(account.id);
+                        List<Note> notes = repository.synchronize(account, password);
+                        database.replaceNotes(account.id, notes);
+                        synchronizedAccounts++;
+                        synchronizedNotes += notes.size();
+                    } catch (Exception accountError) {
+                        failures.add(account.name + ": " + UiErrors.message(accountError));
+                    }
+                }
+                int finalSynchronizedAccounts = synchronizedAccounts;
+                int finalSynchronizedNotes = synchronizedNotes;
                 runOnUiThread(() -> {
-                    setBusy(false, notes.size() + " Notizen synchronisiert.");
+                    accounts.clear();
+                    accounts.addAll(database.listAccounts());
+                    adapter.setAccounts(accounts);
+                    String message = finalSynchronizedAccounts + " Konten · "
+                            + finalSynchronizedNotes + " Notizen synchronisiert.";
+                    if (!failures.isEmpty()) {
+                        message += " " + failures.size() + " Konto/Konten fehlgeschlagen.";
+                        Toast.makeText(this, failures.get(0), Toast.LENGTH_LONG).show();
+                    }
+                    setBusy(false, message);
                     loadCache();
                 });
             } catch (Exception error) {
@@ -157,8 +184,36 @@ public final class MainActivity extends Activity {
 
     private void setBusy(boolean busy, String message) {
         progress.setVisibility(busy ? View.VISIBLE : View.GONE);
-        syncButton.setEnabled(!busy && database.getAccount() != null);
-        addButton.setEnabled(!busy && database.getAccount() != null);
+        syncButton.setEnabled(!busy && !database.listAccounts().isEmpty());
+        addButton.setEnabled(!busy && !database.listAccounts().isEmpty());
+        propertiesButton.setEnabled(!busy);
         status.setText(message);
+    }
+
+    private void createNote() {
+        List<Account> currentAccounts = database.listAccounts();
+        if (currentAccounts.isEmpty()) {
+            startActivityForResult(new Intent(this, PropertiesActivity.class), REQUEST_ACCOUNT);
+            return;
+        }
+        if (currentAccounts.size() == 1) {
+            openNewNote(currentAccounts.get(0).id);
+            return;
+        }
+        String[] names = new String[currentAccounts.size()];
+        for (int index = 0; index < currentAccounts.size(); index++) {
+            names[index] = currentAccounts.get(index).name;
+        }
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Konto für die neue Notiz")
+                .setItems(names, (dialog, which) -> openNewNote(currentAccounts.get(which).id))
+                .setNegativeButton("Abbrechen", null)
+                .show();
+    }
+
+    private void openNewNote(long accountId) {
+        Intent intent = new Intent(this, EditorActivity.class);
+        intent.putExtra(EditorActivity.EXTRA_ACCOUNT_ID, accountId);
+        startActivity(intent);
     }
 }

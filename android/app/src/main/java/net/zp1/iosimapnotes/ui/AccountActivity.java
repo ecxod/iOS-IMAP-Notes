@@ -21,6 +21,8 @@ import net.zp1.iosimapnotes.security.CredentialStore;
 import java.util.List;
 
 public final class AccountActivity extends Activity {
+    public static final String EXTRA_ACCOUNT_ID = "account_id";
+
     private AppDatabase database;
     private CredentialStore credentialStore;
     private final ImapRepository repository = new ImapRepository();
@@ -31,10 +33,13 @@ public final class AccountActivity extends Activity {
     private EditText passwordField;
     private EditText mailboxField;
     private Spinner securitySpinner;
+    private Spinner authenticationSpinner;
     private Button foldersButton;
     private Button saveButton;
+    private Button deleteButton;
     private ProgressBar progress;
     private TextView status;
+    private Account existing;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,18 +55,18 @@ public final class AccountActivity extends Activity {
         passwordField = findViewById(R.id.passwordField);
         mailboxField = findViewById(R.id.mailboxField);
         securitySpinner = findViewById(R.id.securitySpinner);
+        authenticationSpinner = findViewById(R.id.authenticationSpinner);
         foldersButton = findViewById(R.id.foldersButton);
         saveButton = findViewById(R.id.saveButton);
+        deleteButton = findViewById(R.id.deleteAccountButton);
         progress = findViewById(R.id.accountProgress);
         status = findViewById(R.id.accountStatus);
 
-        ArrayAdapter<CharSequence> securityAdapter = ArrayAdapter.createFromResource(
-                this, R.array.security_modes, android.R.layout.simple_spinner_item
-        );
-        securityAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        securitySpinner.setAdapter(securityAdapter);
+        securitySpinner.setAdapter(spinnerAdapter(R.array.security_modes));
+        authenticationSpinner.setAdapter(spinnerAdapter(R.array.authentication_modes));
 
-        Account existing = database.getAccount();
+        long accountId = getIntent().getLongExtra(EXTRA_ACCOUNT_ID, 0L);
+        existing = accountId > 0 ? database.getAccount(accountId) : null;
         if (existing != null) {
             nameField.setText(existing.name);
             hostField.setText(existing.host);
@@ -69,15 +74,27 @@ public final class AccountActivity extends Activity {
             usernameField.setText(existing.username);
             mailboxField.setText(existing.mailbox);
             securitySpinner.setSelection(existing.usesStartTls() ? 1 : 0);
+            authenticationSpinner.setSelection(authenticationPosition(existing.authentication));
+            deleteButton.setVisibility(View.VISIBLE);
         } else {
-            nameField.setText("Meine Notizen");
-            portField.setText("993");
-            mailboxField.setText("Notes");
+            nameField.setText(R.string.default_account_name);
+            portField.setText(R.string.default_tls_port);
+            mailboxField.setText(R.string.default_mailbox);
+            deleteButton.setVisibility(View.GONE);
         }
 
         findViewById(R.id.backButton).setOnClickListener(view -> finish());
         foldersButton.setOnClickListener(view -> loadFolders());
         saveButton.setOnClickListener(view -> saveAndTest());
+        deleteButton.setOnClickListener(view -> confirmDelete());
+    }
+
+    private ArrayAdapter<CharSequence> spinnerAdapter(int resource) {
+        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(
+                this, resource, android.R.layout.simple_spinner_item
+        );
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        return adapter;
     }
 
     private void loadFolders() {
@@ -122,8 +139,9 @@ public final class AccountActivity extends Activity {
             showError(error);
             return;
         }
-        setBusy(true, "Verbindung und Ordner werden geprüft …");
+        setBusy(true, "Verbindung, Authentifizierung und Ordner werden geprüft …");
         AppTasks.IO.execute(() -> {
+            boolean newlyInserted = false;
             try {
                 List<String> folders = repository.listFolders(account, password);
                 if (!folders.contains(account.mailbox)) {
@@ -131,8 +149,16 @@ public final class AccountActivity extends Activity {
                             "Der Ordner „" + account.mailbox + "“ wurde auf dem Server nicht gefunden."
                     );
                 }
-                credentialStore.savePassword(password);
+                newlyInserted = account.id <= 0;
                 database.saveAccount(account);
+                try {
+                    credentialStore.savePassword(account.id, password);
+                } catch (Exception credentialError) {
+                    if (newlyInserted) {
+                        database.deleteAccount(account.id);
+                    }
+                    throw credentialError;
+                }
                 runOnUiThread(() -> {
                     setBusy(false, "Konto gespeichert.");
                     Toast.makeText(this, "Verbindung erfolgreich.", Toast.LENGTH_SHORT).show();
@@ -150,12 +176,16 @@ public final class AccountActivity extends Activity {
 
     private Account readAccount() {
         Account account = new Account();
+        if (existing != null) {
+            account.id = existing.id;
+        }
         account.name = required(nameField, "Kontoname");
         account.host = required(hostField, "IMAP-Server");
         account.username = required(usernameField, "Benutzername");
         account.mailbox = required(mailboxField, "Notes-Ordner");
         account.security = securitySpinner.getSelectedItemPosition() == 1
                 ? Account.SECURITY_STARTTLS : Account.SECURITY_TLS;
+        account.authentication = authenticationValue(authenticationSpinner.getSelectedItemPosition());
         String portText = required(portField, "Port");
         try {
             account.port = Integer.parseInt(portText);
@@ -173,11 +203,28 @@ public final class AccountActivity extends Activity {
         if (!entered.isEmpty()) {
             return entered;
         }
-        String stored = credentialStore.getPassword();
+        String stored = existing == null ? "" : credentialStore.getPassword(existing.id);
         if (stored.isEmpty()) {
             throw new IllegalArgumentException("Bitte das Passwort oder App-Passwort eingeben.");
         }
         return stored;
+    }
+
+    private void confirmDelete() {
+        if (existing == null) {
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("IMAP-Konto löschen?")
+                .setMessage("Das Konto und sein Offline-Cache werden aus der App entfernt. Die Notizen auf dem IMAP-Server bleiben erhalten.")
+                .setPositiveButton("Konto löschen", (dialog, which) -> {
+                    credentialStore.clear(existing.id);
+                    database.deleteAccount(existing.id);
+                    setResult(RESULT_OK);
+                    finish();
+                })
+                .setNegativeButton("Abbrechen", null)
+                .show();
     }
 
     private static String required(EditText field, String label) {
@@ -189,10 +236,25 @@ public final class AccountActivity extends Activity {
         return value;
     }
 
+    private static int authenticationPosition(String value) {
+        if (Account.AUTH_CRAM_MD5.equals(value)) return 1;
+        if (Account.AUTH_PLAIN.equals(value)) return 2;
+        if (Account.AUTH_LOGIN.equals(value)) return 3;
+        return 0;
+    }
+
+    private static String authenticationValue(int position) {
+        if (position == 1) return Account.AUTH_CRAM_MD5;
+        if (position == 2) return Account.AUTH_PLAIN;
+        if (position == 3) return Account.AUTH_LOGIN;
+        return Account.AUTH_AUTO;
+    }
+
     private void setBusy(boolean busy, String message) {
         progress.setVisibility(busy ? View.VISIBLE : View.GONE);
         foldersButton.setEnabled(!busy);
         saveButton.setEnabled(!busy);
+        deleteButton.setEnabled(!busy);
         status.setText(message);
     }
 

@@ -15,8 +15,13 @@ android {
         applicationId = "net.zp1.iosimapnotes"
         minSdk = 23
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
+        buildConfigField(
+            "String",
+            "RELEASE_CERT_SHA256",
+            "\"bf6d4ed85d5d4599476bdf195b7d2a26a5bc6a5a18e900578de876d571555fa0\"",
+        )
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -53,6 +58,10 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     packaging {
