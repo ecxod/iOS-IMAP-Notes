@@ -1,4 +1,4 @@
-/* global SUNEDITOR */
+/* global NotePaste, NoteSearch, SUNEDITOR */
 
 let notes = [];
 let accounts = [];
@@ -19,6 +19,7 @@ const editorArea = document.getElementById("editor-area");
 const saveButton = document.getElementById("save-note");
 const deleteButton = document.getElementById("delete-note");
 const exportButton = document.getElementById("export-note");
+const pastePlainTextButton = document.getElementById("paste-plain-text");
 const searchInput = document.getElementById("note-search");
 const accountFilter = document.getElementById("account-filter");
 const noteHome = document.getElementById("note-home");
@@ -58,10 +59,6 @@ function clearSearchHighlights() {
   }
 }
 
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function updateSearchHighlights() {
   clearSearchHighlights();
   const query = searchInput.value.trim();
@@ -74,17 +71,18 @@ function updateSearchHighlights() {
     return;
   }
 
-  const ranges = [];
-  const matcher = new RegExp(escapeRegExp(query), "giu");
+  const textNodes = [];
   const walker = document.createTreeWalker(editorBody, NodeFilter.SHOW_TEXT);
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    for (const match of node.nodeValue.matchAll(matcher)) {
-      const range = new Range();
-      range.setStart(node, match.index);
-      range.setEnd(node, match.index + match[0].length);
-      ranges.push(range);
-    }
+    textNodes.push(node);
   }
+
+  const ranges = NoteSearch.findSearchMatches(textNodes.map(node => node.nodeValue), query).map(match => {
+    const range = new Range();
+    range.setStart(textNodes[match.startPart], match.startOffset);
+    range.setEnd(textNodes[match.endPart], match.endOffset);
+    return range;
+  });
 
   if (ranges.length) {
     CSS.highlights.set(searchHighlightName, new Highlight(...ranges));
@@ -189,8 +187,31 @@ function currentNoteData() {
   };
 }
 
+async function pastePlainText() {
+  if (!selected || !editor || editorArea.hidden) {
+    return;
+  }
+  try {
+    const text = await window.notesApi.clipboard.readText();
+    if (!text) {
+      return;
+    }
+    editor.insertHTML(NotePaste.plainTextToHtml(text), true, false);
+    editor.focus();
+    setDirty(true);
+    updateSearchHighlights();
+  } catch (error) {
+    saveState.textContent = errorText(error);
+  }
+}
+
+function isEditorTarget(target) {
+  return target instanceof Element
+    && Boolean(target.closest("#editor-area .se-wrapper-wysiwyg"));
+}
+
 function visibleNotes() {
-  const query = searchInput.value.trim().toLocaleLowerCase();
+  const query = searchInput.value.trim();
   const filter = accountFilter.value;
   return notes.filter(note => {
     if (filter === "local" && note.home.kind !== "local") {
@@ -202,8 +223,23 @@ function visibleNotes() {
     if (!query) {
       return true;
     }
-    return `${note.searchText || ""} ${homeLabel(note)}`.toLocaleLowerCase().includes(query);
+    return NoteSearch.matchesSearchText(`${note.searchText || ""} ${homeLabel(note)}`, query);
   });
+}
+
+function renderHighlightedText(element, value, query) {
+  const text = String(value || "");
+  const matches = NoteSearch.findSearchMatches([text], query);
+  let offset = 0;
+  for (const match of matches) {
+    element.append(text.slice(offset, match.startOffset));
+    const highlight = document.createElement("mark");
+    highlight.className = "search-result-highlight";
+    highlight.textContent = text.slice(match.startOffset, match.endOffset);
+    element.append(highlight);
+    offset = match.endOffset;
+  }
+  element.append(text.slice(offset));
 }
 
 function renderList() {
@@ -217,7 +253,7 @@ function renderList() {
 
     const noteTitle = document.createElement("span");
     noteTitle.className = "note-list-title";
-    noteTitle.textContent = note.title;
+    renderHighlightedText(noteTitle, note.title, searchInput.value.trim());
 
     const details = document.createElement("span");
     details.className = "note-list-details";
@@ -258,6 +294,7 @@ function showSelectedNote(note) {
   title.disabled = false;
   deleteButton.disabled = false;
   exportButton.disabled = false;
+  pastePlainTextButton.disabled = false;
   setDirty(false);
   renderList();
   updateSearchHighlights();
@@ -271,6 +308,7 @@ function showEmptyState() {
   noteHome.textContent = "";
   deleteButton.disabled = true;
   exportButton.disabled = true;
+  pastePlainTextButton.disabled = true;
   emptyState.hidden = false;
   editorArea.hidden = true;
   setDirty(false);
@@ -562,6 +600,8 @@ async function init() {
   saveButton.addEventListener("click", saveNote);
   deleteButton.addEventListener("click", deleteNote);
   exportButton.addEventListener("click", exportNote);
+  pastePlainTextButton.addEventListener("pointerdown", event => event.preventDefault());
+  pastePlainTextButton.addEventListener("click", pastePlainText);
   title.addEventListener("input", () => selected && setDirty(true));
   searchInput.addEventListener("input", () => {
     renderList();
@@ -587,6 +627,16 @@ async function init() {
     saveSettings();
   });
   document.addEventListener("keydown", event => {
+    if (
+      (event.ctrlKey || event.metaKey)
+      && event.shiftKey
+      && event.key.toLowerCase() === "v"
+      && isEditorTarget(event.target)
+    ) {
+      event.preventDefault();
+      pastePlainText();
+      return;
+    }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
       saveNote();

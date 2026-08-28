@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage } = require("electron");
+const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, safeStorage } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const fs = require("node:fs/promises");
 const path = require("node:path");
@@ -533,6 +533,7 @@ function registerHandlers() {
   handle("notes:sync", () => serializeOperation(synchronizeAll));
   handle("notes:import", importNote);
   handle("notes:export", exportNote);
+  handle("clipboard:read-text", () => clipboard.readText());
   handle("settings:list", listSettings);
   handle("settings:save", (_event, input) => serializeOperation(() => saveSettings(input)));
   handle("settings:test", (_event, input) => testAccountSettings(input));

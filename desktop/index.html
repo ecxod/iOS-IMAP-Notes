@@ -11,6 +11,8 @@
   <link rel="stylesheet" href="vendor/suneditor/suneditor.min.css">
   <link rel="stylesheet" href="styles.css">
   <script defer src="vendor/suneditor/suneditor.min.js"></script>
+  <script defer src="search-utils.js"></script>
+  <script defer src="paste-utils.js"></script>
   <script defer src="renderer.js"></script>
 </head>
 <body>
@@ -50,6 +52,13 @@
       <input id="note-title" type="text" maxlength="500" aria-label="Note title" placeholder="Note title">
       <span id="note-home"></span>
       <span id="save-state" role="status"></span>
+      <button
+        id="paste-plain-text"
+        type="button"
+        title="Paste as plain text (Ctrl+Shift+V)"
+        aria-keyshortcuts="Control+Shift+V Meta+Shift+V"
+        disabled
+      >Paste plain text</button>
       <button id="export-note" type="button">Export</button>
       <button id="delete-note" type="button" class="danger">Delete</button>
       <button id="save-note" type="button" class="primary">Save</button>

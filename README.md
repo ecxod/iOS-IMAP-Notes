@@ -68,9 +68,15 @@ passwords are encrypted for the signed-in user with DPAPI through Electron's
 
 **Sync** reads Apple Notes from all enabled accounts into one mixed, locally
 cached list. Search covers note titles, bodies and account names across that
-complete list. The account filter can narrow the list without changing a note's
-storage location. Local-only notes remain supported, as do importing `.html`,
+complete list. It ignores spaces, line breaks and common separators such as
+hyphens and slashes, and highlights matches in list titles and the open note.
+The account filter can narrow the list without changing a note's storage
+location. Local-only notes remain supported, as do importing `.html`,
 `.htm` and `.txt` files and exporting notes as HTML.
+
+**Paste plain text** or `Ctrl+Shift+V` inserts only the clipboard's text and
+line breaks. Normal `Ctrl+V` remains available when copied HTML formatting
+should be preserved.
 
 Every synchronized note records its source account, folder, IMAP UIDVALIDITY,
 UID, Apple UUID and source revision. Saving always appends the replacement to
@@ -96,7 +102,7 @@ release must include the generated `.exe`, `.exe.blockmap` and `latest.yml` file
 
 ## Compatibility
 
-Version 1.3.1 targets Thunderbird 128 through 154. Because the Message Header
+Version 1.4.0 targets Thunderbird 128 through 154. Because the Message Header
 Toolbar integration uses a MailExtension Experiment, each new Thunderbird major
 version must be verified before its compatibility limit is raised. Older
 releases remain available for Thunderbird 115 and earlier extension behavior.

@@ -480,6 +480,11 @@ dialog form {
   background: #ffeb3b;
 }
 
+.search-result-highlight {
+  color: #1f2328;
+  background: #ffeb3b;
+}
+
 @media (max-width: 820px) {
   body {
     grid-template-columns: 220px 1fr;
