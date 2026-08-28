@@ -4,7 +4,35 @@ This project provides two editors for Apple Notes stored as IMAP messages:
 
 - a Thunderbird extension that edits a note directly in Thunderbird's Message Pane;
 - an optional Electron desktop application with a local cache and multi-account
-  IMAP synchronization.
+  IMAP synchronization;
+- a native Android application for Android 6.0 and newer.
+
+## Android application
+
+The native Android client is in `android/`. It connects directly to an IMAP
+server over certificate-validated TLS, stores the password encrypted by the
+Android Keystore and keeps a local SQLite cache so synchronized notes remain
+readable offline. It supports account setup with mailbox discovery, note search,
+creation, editing with basic formatting, deletion and manual synchronization.
+
+Saving uses the same Apple headers and UUID as the Thunderbird and desktop
+editors. It verifies IMAP UIDVALIDITY, UID and the raw source revision before it
+appends a replacement. Only after the replacement has been found on the server
+does it expunge exactly the previous message. Notes containing attachments or
+unknown MIME parts are displayed read-only to avoid losing unsupported content.
+
+One universal APK supports API 23 (Android 6.0) through current Android
+versions. The project compiles and targets API 36. Build it with:
+
+```sh
+cd android
+./gradlew clean test lintRelease assembleRelease
+```
+
+Release signing is configured only through the environment variables
+`IOS_NOTES_ANDROID_KEYSTORE_PATH`, `IOS_NOTES_ANDROID_KEYSTORE_PASSWORD`,
+`IOS_NOTES_ANDROID_KEY_ALIAS` and `IOS_NOTES_ANDROID_KEY_PASSWORD`; credentials
+must not be committed to the repository.
 
 ## Thunderbird extension
 

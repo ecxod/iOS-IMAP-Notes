@@ -1,0 +1,244 @@
+package net.zp1.iosimapnotes.ui;
+
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.graphics.Typeface;
+import android.os.Build;
+import android.os.Bundle;
+import android.text.Editable;
+import android.text.Html;
+import android.text.Spanned;
+import android.text.TextWatcher;
+import android.text.style.StyleSpan;
+import android.text.style.UnderlineSpan;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.ProgressBar;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import net.zp1.iosimapnotes.R;
+import net.zp1.iosimapnotes.data.AppDatabase;
+import net.zp1.iosimapnotes.imap.ImapRepository;
+import net.zp1.iosimapnotes.model.Account;
+import net.zp1.iosimapnotes.model.Note;
+import net.zp1.iosimapnotes.security.CredentialStore;
+
+public final class EditorActivity extends Activity {
+    public static final String EXTRA_NOTE_ID = "note_id";
+
+    private AppDatabase database;
+    private CredentialStore credentialStore;
+    private final ImapRepository repository = new ImapRepository();
+    private EditText titleField;
+    private EditText bodyField;
+    private Button saveButton;
+    private Button deleteButton;
+    private ProgressBar progress;
+    private TextView status;
+    private Note note;
+    private boolean loading = true;
+    private boolean dirty;
+    private boolean busy;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_editor);
+        database = new AppDatabase(this);
+        credentialStore = new CredentialStore(this);
+        titleField = findViewById(R.id.titleField);
+        bodyField = findViewById(R.id.bodyField);
+        saveButton = findViewById(R.id.editorSaveButton);
+        deleteButton = findViewById(R.id.deleteButton);
+        progress = findViewById(R.id.editorProgress);
+        status = findViewById(R.id.editorStatus);
+
+        String noteId = getIntent().getStringExtra(EXTRA_NOTE_ID);
+        note = noteId == null ? null : database.getNote(noteId);
+        if (noteId != null && note == null) {
+            Toast.makeText(this, "Die Notiz wurde nicht gefunden. Bitte synchronisieren.", Toast.LENGTH_LONG).show();
+            finish();
+            return;
+        }
+        if (note != null) {
+            titleField.setText(note.title);
+            bodyField.setText(fromHtml(note.bodyHtml));
+            deleteButton.setVisibility(View.VISIBLE);
+            if (note.readOnly) {
+                setReadOnly(note.unsupportedReason);
+            }
+        } else {
+            deleteButton.setVisibility(View.GONE);
+            bodyField.setText("");
+        }
+        loading = false;
+
+        TextWatcher watcher = new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (!loading) dirty = true;
+            }
+            @Override public void afterTextChanged(Editable s) { }
+        };
+        titleField.addTextChangedListener(watcher);
+        bodyField.addTextChangedListener(watcher);
+
+        findViewById(R.id.editorBackButton).setOnClickListener(view -> requestClose());
+        saveButton.setOnClickListener(view -> save());
+        deleteButton.setOnClickListener(view -> confirmDelete());
+        findViewById(R.id.boldButton).setOnClickListener(view -> applySpan(new StyleSpan(Typeface.BOLD)));
+        findViewById(R.id.italicButton).setOnClickListener(view -> applySpan(new StyleSpan(Typeface.ITALIC)));
+        findViewById(R.id.underlineButton).setOnClickListener(view -> applySpan(new UnderlineSpan()));
+    }
+
+    private void setReadOnly(String reason) {
+        titleField.setEnabled(false);
+        bodyField.setEnabled(false);
+        saveButton.setVisibility(View.GONE);
+        findViewById(R.id.formatToolbar).setEnabled(false);
+        findViewById(R.id.boldButton).setEnabled(false);
+        findViewById(R.id.italicButton).setEnabled(false);
+        findViewById(R.id.underlineButton).setEnabled(false);
+        status.setText(reason == null || reason.isEmpty()
+                ? "Diese Notiz ist schreibgeschützt." : reason);
+        status.setVisibility(View.VISIBLE);
+    }
+
+    private void applySpan(Object span) {
+        int start = Math.min(bodyField.getSelectionStart(), bodyField.getSelectionEnd());
+        int end = Math.max(bodyField.getSelectionStart(), bodyField.getSelectionEnd());
+        if (start < 0 || end <= start) {
+            Toast.makeText(this, "Bitte zuerst Text auswählen.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        bodyField.getText().setSpan(span, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        dirty = true;
+    }
+
+    private void save() {
+        if (busy) return;
+        Account account = database.getAccount();
+        if (account == null) {
+            Toast.makeText(this, "Bitte zuerst das IMAP-Konto einrichten.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        String title = titleField.getText().toString().trim();
+        if (title.isEmpty()) {
+            titleField.requestFocus();
+            Toast.makeText(this, "Bitte einen Titel eingeben.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String bodyHtml = toHtml(bodyField.getText());
+        setBusy(true, "Notiz wird sicher gespeichert …");
+        AppTasks.IO.execute(() -> {
+            try {
+                String password = credentialStore.getPassword();
+                if (note == null) {
+                    Note created = repository.create(account, password, title, bodyHtml);
+                    database.saveNote(created);
+                    runOnUiThread(() -> finishAfterSave("Notiz gespeichert."));
+                } else {
+                    note.title = title;
+                    note.bodyHtml = bodyHtml;
+                    ImapRepository.SaveResult result = repository.save(account, password, note);
+                    database.saveNote(result.note);
+                    runOnUiThread(() -> finishAfterSave(
+                            result.warning.isEmpty() ? "Notiz gespeichert." : result.warning
+                    ));
+                }
+            } catch (Exception error) {
+                runOnUiThread(() -> {
+                    setBusy(false, UiErrors.message(error));
+                    Toast.makeText(this, UiErrors.message(error), Toast.LENGTH_LONG).show();
+                });
+            }
+        });
+    }
+
+    private void finishAfterSave(String message) {
+        dirty = false;
+        setBusy(false, message);
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+        finish();
+    }
+
+    private void confirmDelete() {
+        if (note == null || busy) return;
+        new AlertDialog.Builder(this)
+                .setTitle("Notiz löschen?")
+                .setMessage("Die Notiz wird nach einer erneuten Konfliktprüfung vom IMAP-Server gelöscht.")
+                .setPositiveButton("Löschen", (dialog, which) -> deleteNote())
+                .setNegativeButton("Abbrechen", null)
+                .show();
+    }
+
+    private void deleteNote() {
+        Account account = database.getAccount();
+        if (account == null || note == null) return;
+        setBusy(true, "Notiz wird gelöscht …");
+        AppTasks.IO.execute(() -> {
+            try {
+                repository.delete(account, credentialStore.getPassword(), note);
+                database.deleteNote(note.id);
+                runOnUiThread(() -> {
+                    dirty = false;
+                    Toast.makeText(this, "Notiz gelöscht.", Toast.LENGTH_SHORT).show();
+                    finish();
+                });
+            } catch (Exception error) {
+                runOnUiThread(() -> {
+                    setBusy(false, UiErrors.message(error));
+                    Toast.makeText(this, UiErrors.message(error), Toast.LENGTH_LONG).show();
+                });
+            }
+        });
+    }
+
+    private void setBusy(boolean value, String message) {
+        busy = value;
+        progress.setVisibility(value ? View.VISIBLE : View.GONE);
+        saveButton.setEnabled(!value);
+        deleteButton.setEnabled(!value);
+        titleField.setEnabled(!value && (note == null || !note.readOnly));
+        bodyField.setEnabled(!value && (note == null || !note.readOnly));
+        status.setText(message);
+        status.setVisibility(message == null || message.isEmpty() ? View.GONE : View.VISIBLE);
+    }
+
+    private void requestClose() {
+        if (busy) return;
+        if (!dirty || note != null && note.readOnly) {
+            finish();
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("Änderungen verwerfen?")
+                .setMessage("Die Änderungen wurden noch nicht auf dem IMAP-Server gespeichert.")
+                .setPositiveButton("Verwerfen", (dialog, which) -> finish())
+                .setNegativeButton("Weiter bearbeiten", null)
+                .show();
+    }
+
+    @Override
+    public void onBackPressed() {
+        requestClose();
+    }
+
+    @SuppressWarnings("deprecation")
+    private static Spanned fromHtml(String html) {
+        if (Build.VERSION.SDK_INT >= 24) {
+            return Html.fromHtml(html, Html.FROM_HTML_MODE_LEGACY);
+        }
+        return Html.fromHtml(html);
+    }
+
+    @SuppressWarnings("deprecation")
+    private static String toHtml(Spanned text) {
+        if (Build.VERSION.SDK_INT >= 24) {
+            return Html.toHtml(text, Html.TO_HTML_PARAGRAPH_LINES_CONSECUTIVE);
+        }
+        return Html.toHtml(text);
+    }
+}

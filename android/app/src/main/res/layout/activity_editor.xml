@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/surface"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:background="@color/primary"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp">
+
+        <Button android:id="@+id/editorBackButton" style="@style/HeaderButton" android:layout_width="wrap_content" android:layout_height="match_parent" android:text="@string/back_short" />
+        <TextView android:id="@+id/editorHeader" style="@style/HeaderText" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/editor_title" />
+        <Button android:id="@+id/editorSaveButton" style="@style/HeaderButton" android:layout_width="wrap_content" android:layout_height="match_parent" android:text="@string/save" />
+    </LinearLayout>
+
+    <ProgressBar
+        android:id="@+id/editorProgress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:indeterminate="true"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/editorStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="12dp"
+        android:paddingTop="6dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="6dp"
+        android:textColor="@color/danger"
+        android:visibility="gone" />
+
+    <EditText
+        android:id="@+id/titleField"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/note_title_hint"
+        android:inputType="textCapSentences"
+        android:maxLength="500"
+        android:maxLines="2"
+        android:padding="14dp"
+        android:textSize="22sp"
+        android:textStyle="bold" />
+
+    <LinearLayout
+        android:id="@+id/formatToolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/note_yellow"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp">
+
+        <Button android:id="@+id/boldButton" android:layout_width="wrap_content" android:layout_height="48dp" android:text="@string/bold" android:textStyle="bold" />
+        <Button android:id="@+id/italicButton" android:layout_width="wrap_content" android:layout_height="48dp" android:text="@string/italic" android:textStyle="italic" />
+        <Button android:id="@+id/underlineButton" android:layout_width="wrap_content" android:layout_height="48dp" android:text="@string/underline" />
+        <Space android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+        <Button android:id="@+id/deleteButton" android:layout_width="wrap_content" android:layout_height="48dp" android:text="@string/delete" android:textColor="@color/danger" />
+    </LinearLayout>
+
+    <EditText
+        android:id="@+id/bodyField"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="top|start"
+        android:inputType="textCapSentences|textMultiLine"
+        android:padding="16dp"
+        android:scrollbars="vertical"
+        android:textSize="17sp" />
+</LinearLayout>
