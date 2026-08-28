@@ -1,0 +1,30 @@
+name: Publish signed Android APK once
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - .github/workflows/publish-android-apk-once.yml
+      - .release-upload/ios-imap-notes-android-1.0.0.apk
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source and signed APK
+        uses: actions/checkout@v4
+
+      - name: Verify signed APK checksum
+        run: |
+          echo "f7fe8176e3819c024834fa019b55bad310991c65611b6d56e26632926561bfac  .release-upload/ios-imap-notes-android-1.0.0.apk" | sha256sum -c -
+
+      - name: Attach signed APK to v1.4.0
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.4.0
+          files: .release-upload/ios-imap-notes-android-1.0.0.apk
+          fail_on_unmatched_files: true
