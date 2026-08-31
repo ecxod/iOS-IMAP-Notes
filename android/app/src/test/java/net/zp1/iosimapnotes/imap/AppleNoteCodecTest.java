@@ -7,6 +7,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import net.zp1.iosimapnotes.model.Note;
+import net.zp1.iosimapnotes.model.NoteImage;
 
 import org.junit.Test;
 
@@ -14,13 +15,16 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.Collections;
 import java.util.Properties;
 
+import javax.activation.DataHandler;
 import javax.mail.Message;
 import javax.mail.Session;
 import javax.mail.internet.MimeBodyPart;
 import javax.mail.internet.MimeMessage;
 import javax.mail.internet.MimeMultipart;
+import javax.mail.util.ByteArrayDataSource;
 
 public final class AppleNoteCodecTest {
     @Test
@@ -94,6 +98,80 @@ public final class AppleNoteCodecTest {
         assertNotNull(note);
         assertTrue(note.readOnly);
         assertFalse(note.unsupportedReason.isEmpty());
+    }
+
+    @Test
+    public void inlineAppleImageIsEditableAndKeepsItsContentId() throws Exception {
+        Session session = Session.getInstance(new Properties());
+        MimeMessage message = AppleNoteCodec.build(
+                session, "Mit Foto", "Text", "test@example.invalid", "", ""
+        );
+        String contentId = "PHOTO-1@mobilenotes.apple.com";
+        MimeBodyPart html = new MimeBodyPart();
+        html.setContent(
+                "<html><body>Text<object type=\"application/x-apple-msg-attachment\" "
+                        + "data=\"cid:" + contentId + "\"></object></body></html>",
+                "text/html; charset=UTF-8"
+        );
+        MimeBodyPart image = new MimeBodyPart();
+        image.setDataHandler(new DataHandler(new ByteArrayDataSource(
+                new byte[]{(byte) 0x89, 0x50, 0x4e, 0x47}, "image/png"
+        )));
+        image.setFileName("photo.png");
+        image.setDisposition(MimeBodyPart.INLINE);
+        image.setHeader("Content-ID", "<" + contentId + ">");
+        MimeMultipart multipart = new MimeMultipart("related");
+        multipart.addBodyPart(html);
+        multipart.addBodyPart(image);
+        message.setContent(multipart);
+        message.saveChanges();
+
+        Note note = AppleNoteCodec.parse(
+                AppleNoteCodec.toSource(message), 1L, "Notes", 12L, 99L,
+                new Date(), "fallback@example.invalid"
+        );
+
+        assertNotNull(note);
+        assertFalse(note.readOnly);
+        assertEquals(1, note.images.size());
+        assertEquals(contentId, note.images.get(0).contentId);
+        assertEquals("image/png", note.images.get(0).contentType);
+        assertTrue(note.bodyHtml.contains("application/x-apple-msg-attachment"));
+        assertTrue(AppleNoteCodec.renderInlineImages(note.bodyHtml, note.images)
+                .contains("<img src=\"data:image/png;base64,iVBORw==\""));
+    }
+
+    @Test
+    public void builderRoundTripsAppleInlineImageMime() throws Exception {
+        Session session = Session.getInstance(new Properties());
+        String contentId = "PHOTO-2@mobilenotes.apple.com";
+        NoteImage image = new NoteImage(
+                contentId, "image/jpeg", "image.jpeg", new byte[]{1, 2, 3, 4}
+        );
+        MimeMessage message = AppleNoteCodec.build(
+                session,
+                "Mit Foto",
+                "<div>Vorher<object type=\"application/x-apple-msg-attachment\" data=\"cid:"
+                        + contentId + "\"></object>Nachher</div>",
+                "test@example.invalid",
+                "",
+                "",
+                Collections.singletonList(image)
+        );
+        byte[] source = AppleNoteCodec.toSource(message);
+        String raw = new String(source, StandardCharsets.ISO_8859_1);
+        assertTrue(raw.contains("Content-ID: <" + contentId + ">"));
+        assertTrue(raw.toLowerCase().contains("multipart/related"));
+        assertTrue(raw.contains("x-apple-part-url=\"" + contentId + "\""));
+
+        Note note = AppleNoteCodec.parse(
+                source, 1L, "Notes", 13L, 99L, new Date(), "fallback@example.invalid"
+        );
+        assertNotNull(note);
+        assertFalse(note.readOnly);
+        assertEquals(1, note.images.size());
+        assertEquals(contentId, note.images.get(0).contentId);
+        assertEquals(4, note.images.get(0).data.length);
     }
 
     @Test

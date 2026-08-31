@@ -27,9 +27,32 @@ function findPart(parts, contentType) {
   return null;
 }
 
+function hasUnsupportedPart(parts) {
+  for (const part of parts || []) {
+    const contentType = String(part.contentType || "").toLowerCase();
+    if (contentType.startsWith("multipart/")) {
+      if (hasUnsupportedPart(part.parts)) {
+        return true;
+      }
+      continue;
+    }
+    if (!contentType.startsWith("text/html") && !contentType.startsWith("text/plain")) {
+      return true;
+    }
+    if (part.name || part.filename || String(part.contentDisposition || "").toLowerCase() === "attachment") {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function isAppleNote(fullMessage) {
   return headerValues(fullMessage?.headers, "x-uniform-type-identifier")
     .some(value => String(value).trim().toLowerCase() === APPLE_NOTE_UTI);
+}
+
+export function isAppleNoteEditable(fullMessage) {
+  return isAppleNote(fullMessage) && !hasUnsupportedPart(fullMessage?.parts);
 }
 
 export function parseAppleNote(fullMessage) {

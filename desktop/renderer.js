@@ -7,8 +7,15 @@ let editor = null;
 let dirty = false;
 let suppressChanges = false;
 let pendingCreateInput = null;
+let loadedImageMetadata = [];
+const managedImageUrls = new Set();
+let selectionRequest = 0;
+let searchHighlightTimer = null;
 
 const searchHighlightName = "note-search-results";
+const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
+const DATA_IMAGE_PATTERN = /^data:(image\/(?:gif|jpeg|png|webp));base64,([a-z0-9+/=\s]+)$/i;
+const CONTENT_ID_PATTERN = /^[^<>\s\r\n]+$/;
 
 const list = document.getElementById("note-list");
 const title = document.getElementById("note-title");
@@ -33,14 +40,30 @@ const appVersion = document.getElementById("app-version");
 const updateStateText = document.getElementById("update-state");
 const checkUpdatesButton = document.getElementById("check-updates");
 const updateAppButton = document.getElementById("update-app");
+const closeAppButton = document.getElementById("close-app");
 let currentUpdateState = null;
 
-function sanitizeHtml(html) {
+function sanitizeHtml(html, preserveAppleObjects = false) {
   const template = document.createElement("template");
   template.innerHTML = String(html || "");
   template.content
-    .querySelectorAll("script, iframe, frame, object, embed, form, base, meta, link")
+    .querySelectorAll("script, iframe, frame, embed, form, base, meta, link")
     .forEach(element => element.remove());
+  for (const object of template.content.querySelectorAll("object")) {
+    const data = object.getAttribute("data") || "";
+    if (!preserveAppleObjects
+        || object.getAttribute("type") !== "application/x-apple-msg-attachment"
+        || !data.startsWith("cid:")
+        || !CONTENT_ID_PATTERN.test(data.slice(4))) {
+      object.remove();
+    } else {
+      for (const attribute of [...object.attributes]) {
+        if (!["type", "data"].includes(attribute.name.toLowerCase())) {
+          object.removeAttribute(attribute.name);
+        }
+      }
+    }
+  }
   for (const element of template.content.querySelectorAll("*")) {
     for (const attribute of [...element.attributes]) {
       const name = attribute.name.toLowerCase();
@@ -49,8 +72,149 @@ function sanitizeHtml(html) {
         element.removeAttribute(attribute.name);
       }
     }
+    if (element.tagName === "IMG"
+        && !DATA_IMAGE_PATTERN.test(element.getAttribute("src") || "")
+        && !managedImageUrls.has(element.getAttribute("src") || "")) {
+      element.remove();
+    }
   }
   return template.innerHTML;
+}
+
+function cleanContentId(value) {
+  const contentId = String(value || "").trim().replace(/^<|>$/g, "");
+  return CONTENT_ID_PATTERN.test(contentId) ? contentId : "";
+}
+
+function imageMap(note) {
+  return new Map((Array.isArray(note?.images) ? note.images : []).map(image => [
+    cleanContentId(image.contentId).toLowerCase(),
+    image,
+  ]));
+}
+
+function clearManagedImageUrls() {
+  for (const url of managedImageUrls) {
+    URL.revokeObjectURL(url);
+  }
+  managedImageUrls.clear();
+}
+
+function imageBlobUrl(image) {
+  const binary = atob(image.dataBase64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  const url = URL.createObjectURL(new Blob([bytes], { type: image.contentType }));
+  managedImageUrls.add(url);
+  return { url, byteLength: bytes.length };
+}
+
+function editorHtmlForNote(note) {
+  const template = document.createElement("template");
+  template.innerHTML = String(note?.bodyHtml || "");
+  const images = imageMap(note);
+  clearManagedImageUrls();
+  loadedImageMetadata = [];
+  for (const object of template.content.querySelectorAll("object")) {
+    const data = object.getAttribute("data") || "";
+    const contentId = data.toLowerCase().startsWith("cid:") ? cleanContentId(data.slice(4)) : "";
+    const image = images.get(contentId.toLowerCase());
+    if (object.getAttribute("type") !== "application/x-apple-msg-attachment" || !image) {
+      continue;
+    }
+    const img = document.createElement("img");
+    const blob = imageBlobUrl(image);
+    img.src = blob.url;
+    img.alt = image.filename || "Image";
+    img.dataset.appleContentId = image.contentId;
+    img.dataset.appleContentType = image.contentType;
+    img.dataset.appleFilename = image.filename || "image";
+    img.dataset.fileName = image.filename || "image";
+    img.dataset.fileSize = String(Math.floor(image.dataBase64.length * 3 / 4));
+    loadedImageMetadata.push({
+      src: img.src,
+      contentId: image.contentId,
+      contentType: image.contentType,
+      filename: image.filename || "image",
+      dataBase64: image.dataBase64,
+      byteLength: blob.byteLength,
+    });
+    object.replaceWith(img);
+  }
+  return sanitizeHtml(template.innerHTML);
+}
+
+function dataImage(image, originalImages) {
+  const src = String(image.getAttribute("src") || "");
+  const originalIndex = originalImages.findIndex(value => value.src === src);
+  const original = originalIndex >= 0 ? originalImages.splice(originalIndex, 1)[0] : null;
+  if (original) {
+    return {
+      contentId: cleanContentId(image.dataset.appleContentId || original.contentId)
+        || `${crypto.randomUUID().toUpperCase()}@mobilenotes.apple.com`,
+      contentType: original.contentType,
+      filename: String(
+        image.dataset.appleFilename || original.filename || image.dataset.fileName || "image",
+      ).replace(/[\r\n"\\]/g, "_").slice(0, 240),
+      dataBase64: original.dataBase64,
+      byteLength: original.byteLength,
+    };
+  }
+  const match = src.match(DATA_IMAGE_PATTERN);
+  if (!match) {
+    throw new Error("Only local JPEG, PNG, GIF or WebP images can be saved.");
+  }
+  const contentType = match[1].toLowerCase();
+  const dataBase64 = match[2].replace(/\s+/g, "");
+  let byteLength;
+  try {
+    byteLength = atob(dataBase64).length;
+  } catch {
+    throw new Error("An inserted image contains invalid data.");
+  }
+  if (!byteLength) {
+    throw new Error("An inserted image is empty.");
+  }
+  const extension = contentType === "image/jpeg" ? "jpg" : contentType.slice(6);
+  const contentId = cleanContentId(image.dataset.appleContentId)
+    || `${crypto.randomUUID().toUpperCase()}@mobilenotes.apple.com`;
+  const filename = String(
+    image.dataset.appleFilename || image.dataset.fileName || `image.${extension}`,
+  ).replace(/[\r\n"\\]/g, "_").slice(0, 240);
+  return { contentId, contentType, filename, dataBase64, byteLength };
+}
+
+function collectEditorNote() {
+  const template = document.createElement("template");
+  template.innerHTML = String(editor.getContents() || "");
+  const images = new Map();
+  const originalImages = loadedImageMetadata.map(image => ({ ...image }));
+  let totalBytes = 0;
+  for (const element of template.content.querySelectorAll("img")) {
+    const image = dataImage(element, originalImages);
+    const key = image.contentId.toLowerCase();
+    const previous = images.get(key);
+    if (previous && (previous.contentType !== image.contentType || previous.dataBase64 !== image.dataBase64)) {
+      throw new Error("Two different images use the same internal Content-ID.");
+    }
+    if (!previous) {
+      totalBytes += image.byteLength;
+      images.set(key, image);
+    }
+    const object = document.createElement("object");
+    object.setAttribute("type", "application/x-apple-msg-attachment");
+    object.setAttribute("data", `cid:${image.contentId}`);
+    element.replaceWith(object);
+  }
+  if (totalBytes > MAX_IMAGE_BYTES) {
+    throw new Error("Images may use at most 6 MB in total.");
+  }
+  return {
+    bodyHtml: sanitizeHtml(template.innerHTML, true),
+    images: [...images.values()].map(({ byteLength: _byteLength, ...image }) => image),
+  };
 }
 
 function clearSearchHighlights() {
@@ -87,6 +251,16 @@ function updateSearchHighlights() {
   if (ranges.length) {
     CSS.highlights.set(searchHighlightName, new Highlight(...ranges));
   }
+}
+
+function scheduleSearchHighlights() {
+  if (searchHighlightTimer !== null) {
+    clearTimeout(searchHighlightTimer);
+  }
+  searchHighlightTimer = setTimeout(() => {
+    searchHighlightTimer = null;
+    updateSearchHighlights();
+  }, 80);
 }
 
 function errorText(error) {
@@ -169,21 +343,41 @@ function homeLabel(note) {
 function setDirty(value) {
   dirty = value;
   saveState.textContent = value ? "Unsaved" : selected ? "Saved" : "";
-  saveButton.disabled = !selected || !value;
+  saveButton.disabled = !selected || !value || Boolean(selected.readOnly);
 }
 
 function canLeaveCurrentNote() {
   return !dirty || window.confirm("Discard unsaved changes?");
 }
 
-function currentNoteData() {
+function closeApplication() {
+  if (!canLeaveCurrentNote()) {
+    return;
+  }
+  dirty = false;
+  window.notesApi.close();
+}
+
+function currentNoteData({ allowReadOnly = false } = {}) {
   if (!selected) {
     return null;
   }
+  if (selected.readOnly) {
+    return allowReadOnly ? {
+      id: selected.id,
+      title: selected.title,
+      bodyHtml: selected.bodyHtml,
+      images: selected.images || [],
+      readOnly: true,
+      unsupportedReason: selected.unsupportedReason || "",
+      home: selected.home,
+    } : null;
+  }
+  const content = collectEditorNote();
   return {
     id: selected.id,
     title: title.value.trim() || "New note",
-    bodyHtml: sanitizeHtml(editor.getContents()),
+    ...content,
   };
 }
 
@@ -199,7 +393,7 @@ async function pastePlainText() {
     editor.insertHTML(NotePaste.plainTextToHtml(text), true, false);
     editor.focus();
     setDirty(true);
-    updateSearchHighlights();
+    scheduleSearchHighlights();
   } catch (error) {
     saveState.textContent = errorText(error);
   }
@@ -283,7 +477,8 @@ function showSelectedNote(note) {
   selected = note;
   suppressChanges = true;
   title.value = note.title;
-  editor.setContents(sanitizeHtml(note.bodyHtml));
+  editor.setContents(editorHtmlForNote(note));
+  editor.readOnly(Boolean(note.readOnly));
   suppressChanges = false;
   noteHome.textContent = homeLabel(note);
   noteHome.title = note.home.kind === "imap"
@@ -291,11 +486,15 @@ function showSelectedNote(note) {
     : "Stored only on this computer";
   emptyState.hidden = true;
   editorArea.hidden = false;
-  title.disabled = false;
+  title.disabled = Boolean(note.readOnly);
   deleteButton.disabled = false;
   exportButton.disabled = false;
-  pastePlainTextButton.disabled = false;
+  pastePlainTextButton.disabled = Boolean(note.readOnly);
   setDirty(false);
+  if (note.readOnly) {
+    saveState.textContent = note.unsupportedReason
+      || "This note contains unsupported content and is read-only.";
+  }
   renderList();
   updateSearchHighlights();
 }
@@ -315,13 +514,29 @@ function showEmptyState() {
   renderList();
 }
 
-function selectNote(id) {
-  if (id === selected?.id || !canLeaveCurrentNote()) {
+async function selectNote(id, { force = false, confirmDiscard = true } = {}) {
+  if (!force && id === selected?.id) {
     return;
   }
-  const note = notes.find(item => item.id === id);
-  if (note) {
+  if (confirmDiscard && !canLeaveCurrentNote()) {
+    return;
+  }
+  const request = ++selectionRequest;
+  saveState.textContent = "Loading…";
+  try {
+    const note = await window.notesApi.get(id);
+    if (request !== selectionRequest) {
+      return;
+    }
+    if (!note) {
+      showEmptyState();
+      return;
+    }
     showSelectedNote(note);
+  } catch (error) {
+    if (request === selectionRequest) {
+      saveState.textContent = errorText(error);
+    }
   }
 }
 
@@ -329,8 +544,9 @@ async function reloadNotes(preferredId = selected?.id) {
   notes = (await window.notesApi.list()).sort((a, b) => b.updatedAt - a.updatedAt);
   const note = notes.find(item => item.id === preferredId) || notes[0];
   if (note) {
-    showSelectedNote(note);
+    await selectNote(note.id, { force: true, confirmDiscard: false });
   } else {
+    selectionRequest += 1;
     showEmptyState();
   }
 }
@@ -397,13 +613,13 @@ async function completeCreateNote() {
 }
 
 async function saveNote() {
-  const note = currentNoteData();
-  if (!note) {
-    return;
-  }
-  saveButton.disabled = true;
-  saveState.textContent = selected.home?.kind === "imap" ? "Saving to IMAP…" : "Saving…";
   try {
+    const note = currentNoteData();
+    if (!note) {
+      return;
+    }
+    saveButton.disabled = true;
+    saveState.textContent = selected.home?.kind === "imap" ? "Saving to IMAP…" : "Saving…";
     const result = await window.notesApi.save(note);
     await reloadNotes(result.note.id);
     if (result.warning) {
@@ -440,9 +656,13 @@ async function importNote() {
 }
 
 async function exportNote() {
-  const note = currentNoteData();
-  if (note) {
-    await window.notesApi.export(note);
+  try {
+    const note = currentNoteData({ allowReadOnly: true });
+    if (note) {
+      await window.notesApi.export(note);
+    }
+  } catch (error) {
+    saveState.textContent = errorText(error);
   }
 }
 
@@ -578,16 +798,29 @@ async function init() {
       ["bold", "underline", "italic", "strike"],
       ["fontColor", "hiliteColor"],
       ["align", "list", "outdent", "indent"],
-      ["link", "table", "horizontalRule"],
+      ["link", "image", "table", "horizontalRule"],
       ["removeFormat", "codeView", "fullScreen"],
     ],
+    imageAccept: "image/jpeg,image/png,image/gif,image/webp",
+    imageFileInput: true,
+    imageMultipleFile: true,
+    imageUploadSizeLimit: MAX_IMAGE_BYTES,
+    imageUrlInput: false,
     callBackSave: saveNote,
   });
+  editor.onImageUploadBefore = files => {
+    const supported = new Set(["image/gif", "image/jpeg", "image/png", "image/webp"]);
+    if ([...files].some(file => !supported.has(file.type))) {
+      saveState.textContent = "Only JPEG, PNG, GIF and WebP images are supported.";
+      return false;
+    }
+    return true;
+  };
   editor.onChange = () => {
     if (!suppressChanges && selected) {
       setDirty(true);
     }
-    updateSearchHighlights();
+    scheduleSearchHighlights();
   };
 
   document.getElementById("new-note").addEventListener("click", () => openNewNoteDialog());
@@ -596,6 +829,7 @@ async function init() {
   document.getElementById("open-settings").addEventListener("click", openSettings);
   checkUpdatesButton.addEventListener("click", () => window.notesApi.updates.check());
   updateAppButton.addEventListener("click", useUpdateButton);
+  closeAppButton.addEventListener("click", closeApplication);
   document.getElementById("add-account").addEventListener("click", () => addAccountCard());
   saveButton.addEventListener("click", saveNote);
   deleteButton.addEventListener("click", deleteNote);
@@ -605,7 +839,7 @@ async function init() {
   title.addEventListener("input", () => selected && setDirty(true));
   searchInput.addEventListener("input", () => {
     renderList();
-    updateSearchHighlights();
+    scheduleSearchHighlights();
   });
   accountFilter.addEventListener("change", renderList);
   newNoteHome.addEventListener("change", updateNewNoteFolder);
@@ -648,6 +882,7 @@ async function init() {
       event.returnValue = "";
     }
   });
+  window.addEventListener("unload", clearManagedImageUrls);
 
   await initializeUpdates();
   await loadSettings();

@@ -80,6 +80,48 @@
     finishEditing({ restore: true });
   }
 
+  function showInlineImages(images) {
+    const byContentId = new Map((images || []).map(image => [
+      String(image.contentId || "").toLowerCase(),
+      image,
+    ]));
+    const shown = new Set([...document.querySelectorAll(
+      ".ios-imap-notes-inline-image[data-content-id]",
+    )].map(figure => figure.dataset.contentId));
+
+    function createPreview(preview, contentId) {
+      const figure = document.createElement("figure");
+      figure.className = "ios-imap-notes-inline-image";
+      figure.dataset.contentId = contentId;
+      const image = document.createElement("img");
+      image.src = preview.dataUrl;
+      image.alt = preview.name || "Image";
+      image.referrerPolicy = "no-referrer";
+      figure.append(image);
+      shown.add(contentId);
+      return figure;
+    }
+
+    for (const object of document.querySelectorAll(
+      'object[type="application/x-apple-msg-attachment"][data^="cid:"]',
+    )) {
+      const contentId = String(object.getAttribute("data") || "")
+        .slice(4).replace(/^<|>$/g, "").toLowerCase();
+      const preview = byContentId.get(contentId);
+      if (!preview?.dataUrl?.startsWith("data:image/")) {
+        continue;
+      }
+      object.replaceWith(createPreview(preview, contentId));
+    }
+
+    const host = document.querySelector(".moz-text-html") || document.body;
+    for (const [contentId, preview] of byContentId) {
+      if (preview?.dataUrl?.startsWith("data:image/") && !shown.has(contentId)) {
+        host.append(createPreview(preview, contentId));
+      }
+    }
+  }
+
   function beginEditing(note) {
     if (editorState || !note?.isAppleNote) {
       return;
@@ -141,6 +183,9 @@
     switch (message?.command) {
       case "notes:begin-edit":
         beginEditing(message.note);
+        break;
+      case "notes:show-inline-images":
+        showInlineImages(message.images);
         break;
       case "notes:save-request":
         save();

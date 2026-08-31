@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "attachment:test-note": "node scripts/create-attachment-note.mjs",
     "build:xpi": "bash scripts/build-xpi.sh",
     "check": "node --check background.js && node --check experiments/notesHeader/implementation.js && node --check message-display/editor.js && node --check scripts/apple-note.mjs && node --check scripts/rfc822.mjs",
     "test": "node --test tests/*.test.mjs"

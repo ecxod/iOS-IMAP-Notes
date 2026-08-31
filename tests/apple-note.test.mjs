@@ -7,6 +7,7 @@ import {
   getAppleNoteRevision,
   getAppleNoteUuid,
   isAppleNote,
+  isAppleNoteEditable,
   parseAppleNote,
   replaceAppleNoteBody,
   waitForAppleNote,
@@ -89,6 +90,22 @@ test("finds an HTML note body in nested MIME parts", () => {
   ]);
 
   assert.equal(parseAppleNote(nested).bodyHtml, "Shopping<div>Milk</div>");
+});
+
+test("keeps Apple notes with MIME attachments out of the destructive editor", () => {
+  const note = noteMessage("", [
+    {
+      contentType: "multipart/related",
+      parts: [
+        { contentType: "text/html", body: "Photo<object data=\"cid:photo@example\"></object>" },
+        { contentType: "image/jpeg", name: "photo.jpg", body: "binary" },
+      ],
+    },
+  ]);
+
+  assert.equal(isAppleNote(note), true);
+  assert.equal(isAppleNoteEditable(note), false);
+  assert.equal(isAppleNoteEditable(noteMessage("Plain note")), true);
 });
 
 test("rejects regular messages and notes without a readable body", () => {

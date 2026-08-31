@@ -5,6 +5,7 @@ import {
   getAppleNoteRevision,
   getAppleNoteUuid,
   isAppleNote,
+  isAppleNoteEditable,
   replaceAppleNoteBody,
   waitForAppleNote,
 } from "./scripts/apple-note.mjs";
@@ -16,6 +17,7 @@ const DISPLAY_SCRIPT_ID = "ios-imap-notes-message-editor";
 const editingTabs = new Map();
 const pendingAutoEdit = new Map();
 const savingTabs = new Set();
+const MAX_INLINE_IMAGE_PREVIEW_BYTES = 6 * 1024 * 1024;
 
 function text(key, fallback) {
   return browser.i18n.getMessage(key) || fallback;
@@ -58,7 +60,72 @@ async function getNote(messageId, options = {}) {
   };
 }
 
-async function updateAction(tabId, appleNote, mode = "view") {
+function normalizeContentId(value) {
+  return String(value || "").trim().replace(/^<|>$/g, "").toLowerCase();
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener(
+      "load",
+      () => resolve(String(reader.result || "")),
+      { once: true },
+    );
+    reader.addEventListener(
+      "error",
+      () => reject(reader.error || new Error("Could not read inline image.")),
+      { once: true },
+    );
+    reader.readAsDataURL(file);
+  });
+}
+
+async function getInlineImagePreviews(messageId) {
+  const attachments = await browser.messages.listAttachments(messageId);
+  const previews = [];
+  let totalBytes = 0;
+  for (const attachment of attachments) {
+    const contentId = normalizeContentId(attachment.contentId);
+    const contentType = String(attachment.contentType || "").toLowerCase();
+    if (!contentId || !contentType.startsWith("image/") || !attachment.partName) {
+      continue;
+    }
+    const declaredSize = Number(attachment.size || 0);
+    if (declaredSize > MAX_INLINE_IMAGE_PREVIEW_BYTES
+        || totalBytes + declaredSize > MAX_INLINE_IMAGE_PREVIEW_BYTES) {
+      continue;
+    }
+    const file = await browser.messages.getAttachmentFile(messageId, attachment.partName);
+    if (!file || file.size > MAX_INLINE_IMAGE_PREVIEW_BYTES
+        || totalBytes + file.size > MAX_INLINE_IMAGE_PREVIEW_BYTES) {
+      continue;
+    }
+    previews.push({
+      contentId,
+      dataUrl: await fileToDataUrl(file),
+      name: attachment.name || file.name || "Image",
+    });
+    totalBytes += file.size;
+  }
+  return previews;
+}
+
+async function showInlineImages(tabId, messageId) {
+  try {
+    const images = await getInlineImagePreviews(messageId);
+    if (images.length) {
+      await browser.tabs.sendMessage(tabId, {
+        command: "notes:show-inline-images",
+        images,
+      });
+    }
+  } catch (error) {
+    console.debug("Could not show Apple note inline images", error);
+  }
+}
+
+async function updateAction(tabId, appleNote, mode = "view", editable = true) {
   try {
     await browser.notesHeader.setNoteMode(
       tabId,
@@ -90,7 +157,11 @@ async function updateAction(tabId, appleNote, mode = "view") {
         : text("editNote", "Edit note"),
     }),
   ]);
-  await browser.messageDisplayAction.enable(tabId);
+  if (editable) {
+    await browser.messageDisplayAction.enable(tabId);
+  } else {
+    await browser.messageDisplayAction.disable(tabId);
+  }
 }
 
 async function refreshDisplayedMessage(tab, message) {
@@ -105,12 +176,16 @@ async function refreshDisplayedMessage(tab, message) {
     }
     const full = await browser.messages.getFull(message.id);
     const appleNote = isAppleNote(full);
+    const editable = isAppleNoteEditable(full);
     const alreadyEditing = isSameMessage(editingTabs.get(tab.id), message);
     if (!alreadyEditing) {
       editingTabs.delete(tab.id);
     }
-    await updateAction(tab.id, appleNote, alreadyEditing ? "edit" : "view");
-    if (appleNote && !alreadyEditing) {
+    await updateAction(tab.id, appleNote, alreadyEditing ? "edit" : "view", editable);
+    if (appleNote && !editable) {
+      await showInlineImages(tab.id, message.id);
+    }
+    if (appleNote && editable && !alreadyEditing) {
       try {
         await beginEditing(tab.id, message, { attempts: 8, delayMs: 250 });
       } catch (error) {
@@ -159,6 +234,12 @@ async function beginEditing(tabId, message = null, options = {}) {
   if (!note) {
     await updateAction(tabId, false);
     return false;
+  }
+  if (!isAppleNoteEditable(note.full)) {
+    throw new Error(text(
+      "attachmentNoteReadOnly",
+      "This note contains attachments or unknown MIME parts and is read-only to prevent data loss.",
+    ));
   }
 
   const stillDisplayed = await getDisplayedMessage(tabId);
@@ -287,6 +368,12 @@ async function saveNote(tabId, bodyHtml, subject) {
   const note = await getNote(displayed.id);
   if (!note) {
     throw new Error(text("noiOSNote", "This does not appear to be a valid Apple note."));
+  }
+  if (!isAppleNoteEditable(note.full)) {
+    throw new Error(text(
+      "attachmentNoteReadOnly",
+      "This note contains attachments or unknown MIME parts and is read-only to prevent data loss.",
+    ));
   }
 
   await assertNoteUnchanged(tabId, displayed, note);
@@ -436,7 +523,13 @@ async function handleRuntimeMessage(message, sender) {
     case "notes:editing-finished": {
       editingTabs.delete(tabId);
       const displayed = await getDisplayedMessage(tabId);
-      await updateAction(tabId, Boolean(displayed && await getNote(displayed.id)));
+      const note = displayed && await getNote(displayed.id);
+      await updateAction(
+        tabId,
+        Boolean(note),
+        "view",
+        Boolean(note && isAppleNoteEditable(note.full)),
+      );
       return { ok: true };
     }
     case "notes:save":
@@ -510,14 +603,17 @@ browser.menus.onShown.addListener(async (info) => {
     ? info.selectedMessages.messages[0]
     : null;
   let visible = false;
+  let enabled = false;
   if (message) {
     try {
-      visible = isAppleNote(await browser.messages.getFull(message.id));
+      const full = await browser.messages.getFull(message.id);
+      visible = isAppleNote(full);
+      enabled = isAppleNoteEditable(full);
     } catch (error) {
       console.debug("Could not inspect context message", error);
     }
   }
-  await browser.menus.update(EDIT_MENU_ID, { visible });
+  await browser.menus.update(EDIT_MENU_ID, { visible, enabled });
   await browser.menus.refresh();
 });
 

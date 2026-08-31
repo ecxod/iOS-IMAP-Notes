@@ -1,5 +1,6 @@
 {
   "Save": { "message": "Speichern" },
+  "attachmentNoteReadOnly": { "message": "Diese Notiz enthält Anhänge oder unbekannte MIME-Teile und bleibt zum Schutz vor Datenverlust schreibgeschützt." },
   "Close": { "message": "Schließen" },
   "cancel": { "message": "Abbrechen" },
   "editNote": { "message": "Notiz bearbeiten" },

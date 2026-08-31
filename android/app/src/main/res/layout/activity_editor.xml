@@ -63,30 +63,6 @@
         android:paddingStart="8dp"
         android:paddingEnd="8dp">
 
-        <ImageButton
-            android:id="@+id/boldButton"
-            style="?android:attr/borderlessButtonStyle"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:contentDescription="@string/bold"
-            android:padding="12dp"
-            android:src="@drawable/ic_format_bold" />
-        <ImageButton
-            android:id="@+id/italicButton"
-            style="?android:attr/borderlessButtonStyle"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:contentDescription="@string/italic"
-            android:padding="12dp"
-            android:src="@drawable/ic_format_italic" />
-        <ImageButton
-            android:id="@+id/underlineButton"
-            style="?android:attr/borderlessButtonStyle"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:contentDescription="@string/underline"
-            android:padding="12dp"
-            android:src="@drawable/ic_format_underline" />
         <Button
             android:id="@+id/languageButton"
             style="?android:attr/borderlessButtonStyle"
@@ -98,14 +74,10 @@
         <Button android:id="@+id/deleteButton" android:layout_width="wrap_content" android:layout_height="48dp" android:text="@string/delete" android:textColor="@color/danger" />
     </LinearLayout>
 
-    <EditText
-        android:id="@+id/bodyField"
+    <WebView
+        android:id="@+id/bodyEditor"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:gravity="top|start"
-        android:inputType="textAutoCorrect|textCapSentences|textLongMessage|textMultiLine"
-        android:padding="16dp"
-        android:scrollbars="vertical"
-        android:textSize="17sp" />
+        android:background="@color/surface" />
 </LinearLayout>

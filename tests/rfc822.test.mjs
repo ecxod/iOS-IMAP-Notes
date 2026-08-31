@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createRawAppleNoteMessage } from "../scripts/rfc822.mjs";
+import {
+  createAppleAttachmentObject,
+  createRawAppleNoteMessage,
+} from "../scripts/rfc822.mjs";
 
 const baseHeaders = {
   from: ["Jörg Beispiel <notes@example.net>"],
@@ -50,4 +53,33 @@ test("rejects invalid header names and missing required headers", () => {
 test("allows a note with an empty subject", () => {
   const raw = createRawAppleNoteMessage({ ...baseHeaders, subject: [""] }, "Body");
   assert.match(raw, /^Subject: \r$/m);
+});
+
+test("builds the multipart/related format used by iOS attachment notes", () => {
+  const contentId = "PHOTO-1@mobilenotes.apple.com";
+  const html = `<html><body>Photo${createAppleAttachmentObject(contentId)}</body></html>`;
+  const raw = createRawAppleNoteMessage(baseHeaders, html, [{
+    filename: "photo.png",
+    contentType: "image/png",
+    contentId,
+    data: new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+  }]);
+
+  assert.match(raw, /^Content-Type: multipart\/related; type="text\/html"; boundary="Apple-Mail-[^"]+"\r$/m);
+  assert.match(raw, /type="application\/x-apple-msg-attachment" data="cid:PHOTO-1@mobilenotes\.apple\.com"/);
+  assert.match(raw, /^Content-Type: image\/png; name="photo\.png"; x-apple-part-url="PHOTO-1@mobilenotes\.apple\.com"\r$/m);
+  assert.match(raw, /^Content-Disposition: inline; filename="photo\.png"\r$/m);
+  assert.match(raw, /^Content-ID: <PHOTO-1@mobilenotes\.apple\.com>\r$/m);
+  assert.match(raw, /\r\niVBORw==\r\n--Apple-Mail-/);
+});
+
+test("rejects malformed attachment metadata", () => {
+  assert.throws(
+    () => createRawAppleNoteMessage(baseHeaders, "Body", [{
+      filename: "bad.bin",
+      contentType: "not a MIME type",
+      data: new Uint8Array([1]),
+    }]),
+    /Invalid attachment content type/,
+  );
 });

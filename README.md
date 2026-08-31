@@ -14,8 +14,9 @@ server over certificate-validated TLS, stores the password encrypted by the
 Android Keystore and keeps a local SQLite cache so synchronized notes remain
 readable offline. It supports multiple IMAP accounts, mailbox discovery,
 selectable automatic, CRAM-MD5, PLAIN or LOGIN authentication, note search,
-creation, editing with icon-based basic formatting, selectable spell-check
-language, deletion and manual synchronization.
+creation, editing with SunEditor, selectable spell-check language, deletion and
+manual synchronization. JPEG, PNG, GIF and WebP images can be inserted directly
+in the editor and are synchronized as Apple-compatible inline MIME parts.
 
 The **Propr.** screen manages the IMAP accounts and checks GitHub Releases for
 new Android versions. An update is accepted only when its package name and
@@ -26,8 +27,10 @@ must be named `ios-imap-notes-android-<version>.apk`.
 Saving uses the same Apple headers and UUID as the Thunderbird and desktop
 editors. It verifies IMAP UIDVALIDITY, UID and the raw source revision before it
 appends a replacement. Only after the replacement has been found on the server
-does it expunge exactly the previous message. Notes containing attachments or
-unknown MIME parts are displayed read-only to avoid losing unsupported content.
+does it expunge exactly the previous message. Notes containing unsupported
+attachments or unknown MIME parts are displayed read-only to avoid losing
+content. Inline JPEG, PNG, GIF and WebP parts referenced by Apple's Content-ID
+attachment objects remain editable and available offline.
 
 One universal APK supports API 23 (Android 6.0) through current Android
 versions. The project compiles and targets API 36. Build it with:
@@ -80,6 +83,26 @@ Additional shortcuts:
 Saving creates a replacement IMAP message while preserving the Apple Note UUID.
 By default, the previous message is moved to the Local Folders Trash as a backup.
 
+Apple stores attachments in IMAP notes as `multipart/related` messages. The HTML
+contains `application/x-apple-msg-attachment` objects that reference inline MIME
+parts by Content-ID. The Thunderbird extension renders supported images inline
+but keeps attachment-bearing notes read-only. A reviewable compatibility test
+note can be generated without changing a mailbox:
+
+```sh
+node scripts/create-attachment-note.mjs \
+  --title "Anhangstest" \
+  --output /tmp/apple-attachment-test.eml \
+  image.jpg
+```
+
+Import the generated `.eml` unchanged into the IMAP Notes folder to test it on
+an Apple device.
+
+Thunderbird 128 and newer resolves those Content-IDs through its attachment API
+and displays supported image parts in the note body as well as in Thunderbird's
+normal attachment list. The original MIME message is not modified.
+
 ### Build and test the XPI
 
 Requirements: Node.js and `zip`.
@@ -101,6 +124,14 @@ supports any number of IMAP accounts. **Settings** stores an account name, IMAP
 host, port, TLS mode, username and Notes folder for each account. On Windows,
 passwords are encrypted for the signed-in user with DPAPI through Electron's
 `safeStorage`; passwords are never written to the notes cache.
+
+JPEG, PNG, GIF and WebP images can be inserted with SunEditor's image button.
+Existing Apple Notes images are displayed inline and saved with their original
+Content-ID; unsupported attachments keep a synchronized note read-only.
+The note list transfers only compact summaries to the renderer, unchanged IMAP
+messages are reused from the cache, and MIME parsing runs outside Electron's
+main thread. **Close** closes the desktop application directly after confirming
+the loss of any unsaved edit.
 
 **Sync** reads Apple Notes from all enabled accounts into one mixed, locally
 cached list. Search covers note titles, bodies and account names across that

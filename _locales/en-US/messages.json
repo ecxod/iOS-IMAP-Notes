@@ -1,5 +1,6 @@
 {
   "Save": { "message": "Save" },
+  "attachmentNoteReadOnly": { "message": "This note contains attachments or unknown MIME parts and is read-only to prevent data loss." },
   "Close": { "message": "Close" },
   "cancel": { "message": "Cancel" },
   "editNote": { "message": "Edit note" },

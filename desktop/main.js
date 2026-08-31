@@ -5,9 +5,11 @@ const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const { updaterErrorMessage } = require("./update-utils");
 const {
+  MAX_IMAGE_BYTES,
   MAX_NOTE_LENGTH,
   cleanTitle,
   htmlToSearchText,
+  renderAppleImages,
 } = require("./apple-note");
 const {
   createImapNote,
@@ -20,6 +22,7 @@ const {
 const SETTINGS_VERSION = 1;
 const NOTES_VERSION = 2;
 let operationQueue = Promise.resolve();
+let notesCache = null;
 let updateState = {
   status: "idle",
   currentVersion: app.getVersion(),
@@ -189,27 +192,76 @@ function normalizeNote(value) {
   }
   const bodyHtml = String(value.bodyHtml || "").slice(0, MAX_NOTE_LENGTH);
   const title = cleanTitle(value.title);
+  const images = [];
+  const contentIds = new Set();
+  let imageBytes = 0;
+  for (const rawImage of Array.isArray(value.images) ? value.images : []) {
+    const contentId = String(rawImage?.contentId || "").trim().replace(/^<|>$/g, "");
+    const contentType = String(rawImage?.contentType || "").toLowerCase();
+    const filename = String(rawImage?.filename || "image").replace(/[\r\n"\\]/g, "_").slice(0, 240);
+    const dataBase64 = String(rawImage?.dataBase64 || "").replace(/\s+/g, "");
+    const estimatedBytes = Math.floor(dataBase64.length * 3 / 4);
+    const key = contentId.toLowerCase();
+    if (!contentId || /[<>\s]/.test(contentId)
+        || !["image/gif", "image/jpeg", "image/png", "image/webp"].includes(contentType)
+        || !dataBase64 || contentIds.has(key) || imageBytes + estimatedBytes > MAX_IMAGE_BYTES) {
+      continue;
+    }
+    contentIds.add(key);
+    imageBytes += estimatedBytes;
+    images.push({ contentId, contentType, filename, dataBase64 });
+  }
   return {
     id: typeof value.id === "string" && value.id ? value.id : randomUUID(),
     title,
     bodyHtml,
     searchText: String(value.searchText || `${title} ${htmlToSearchText(bodyHtml)}`).toLocaleLowerCase(),
     updatedAt: Number.isFinite(value.updatedAt) ? value.updatedAt : Date.now(),
+    images,
+    readOnly: Boolean(value.readOnly),
+    unsupportedReason: String(value.unsupportedReason || ""),
     home: normalizeHome(value.home),
   };
 }
 
 async function readNotes() {
+  if (notesCache) {
+    return notesCache;
+  }
   const data = await readJson(notesFile(), []);
   const values = Array.isArray(data) ? data : data?.notes;
-  return Array.isArray(values) ? values.map(normalizeNote).filter(Boolean) : [];
+  notesCache = Array.isArray(values) ? values.map(normalizeNote).filter(Boolean) : [];
+  return notesCache;
 }
 
 async function writeNotes(notes) {
+  const normalized = notes.map(normalizeNote).filter(Boolean);
   await writeJson(notesFile(), {
     version: NOTES_VERSION,
-    notes: notes.map(normalizeNote).filter(Boolean),
+    notes: normalized,
   });
+  notesCache = normalized;
+}
+
+function noteSummary(note) {
+  return {
+    id: note.id,
+    title: note.title,
+    searchText: note.searchText,
+    updatedAt: note.updatedAt,
+    readOnly: note.readOnly,
+    unsupportedReason: note.unsupportedReason,
+    imageCount: note.images.length,
+    home: note.home,
+  };
+}
+
+async function listNotes() {
+  return (await readNotes()).map(noteSummary);
+}
+
+async function getNote(id) {
+  return (await readNotes()).find(note => note.id === id) || null;
 }
 
 function normalizeAccount(value, { requirePassword = false } = {}) {
@@ -361,26 +413,35 @@ function serializeOperation(action) {
 async function synchronizeAll() {
   const settings = await readSettingsRaw();
   const enabled = settings.accounts.filter(account => account.enabled !== false);
+  let notes = await readNotes();
   const results = await Promise.all(enabled.map(async account => {
     try {
       const password = await decryptPassword(account);
-      return { account, notes: await syncAccount(account, password), ok: true };
+      const cachedNotes = notes.filter(note =>
+        note.home.kind === "imap"
+          && note.home.accountId === account.id
+          && note.home.mailbox === account.mailbox
+      );
+      const synchronized = await syncAccount(account, password, cachedNotes);
+      return { account, ...synchronized, ok: true };
     } catch (error) {
       return { account, error: error.message || String(error), ok: false };
     }
   }));
 
-  let notes = await readNotes();
+  let cacheChanged = false;
   for (const result of results) {
-    if (!result.ok) {
+    if (!result.ok || !result.changed) {
       continue;
     }
     notes = notes.filter(note => note.home.kind !== "imap" || note.home.accountId !== result.account.id);
     notes.push(...result.notes);
+    cacheChanged = true;
   }
-  await writeNotes(notes);
+  if (cacheChanged) {
+    await writeNotes(notes);
+  }
   return {
-    notes,
     results: results.map(result => ({
       accountId: result.account.id,
       accountName: result.account.name,
@@ -399,6 +460,7 @@ async function createNote(input) {
       id: randomUUID(),
       title: cleanTitle(input?.title),
       bodyHtml: String(input?.bodyHtml || "<div><br></div>"),
+      images: Array.isArray(input?.images) ? input.images : [],
       updatedAt: Date.now(),
       home: { kind: "local" },
     });
@@ -407,16 +469,17 @@ async function createNote(input) {
     note = await createImapNote(account, password, {
       title: cleanTitle(input?.title),
       bodyHtml: String(input?.bodyHtml || "<div><br></div>"),
+      images: Array.isArray(input?.images) ? input.images : [],
     });
   }
-  const notes = await readNotes();
+  const notes = [...await readNotes()];
   notes.unshift(note);
   await writeNotes(notes);
   return note;
 }
 
 async function saveNote(input) {
-  const notes = await readNotes();
+  const notes = [...await readNotes()];
   const index = notes.findIndex(item => item.id === input?.id);
   if (index === -1) {
     throw new Error("The note is no longer present in the local cache.");
@@ -426,6 +489,7 @@ async function saveNote(input) {
     ...original,
     title: cleanTitle(input.title),
     bodyHtml: String(input.bodyHtml || ""),
+    images: Array.isArray(input.images) ? input.images : [],
     searchText: "",
     updatedAt: Date.now(),
   });
@@ -504,7 +568,7 @@ async function exportNote(event, input) {
     '<html><head><meta charset="utf-8">',
     `<title>${escapeHtml(note.title)}</title>`,
     "</head><body>",
-    note.bodyHtml,
+    renderAppleImages(note.bodyHtml, note.images),
     "</body></html>",
   ].join("");
   await fs.writeFile(result.filePath, html, "utf8");
@@ -526,7 +590,8 @@ function handle(channel, callback) {
 }
 
 function registerHandlers() {
-  handle("notes:list", readNotes);
+  handle("notes:list", listNotes);
+  handle("notes:get", (_event, id) => getNote(id));
   handle("notes:create", (_event, input) => serializeOperation(() => createNote(input)));
   handle("notes:save", (_event, input) => serializeOperation(() => saveNote(input)));
   handle("notes:delete", (_event, id) => serializeOperation(() => deleteNote(id)));
@@ -541,6 +606,10 @@ function registerHandlers() {
   handle("updates:check", checkForUpdates);
   handle("updates:download", downloadUpdate);
   handle("updates:install", installUpdate);
+  ipcMain.on("app:close-window", event => {
+    assertTrustedSender(event);
+    BrowserWindow.fromWebContents(event.sender)?.destroy();
+  });
 }
 
 async function createWindow() {

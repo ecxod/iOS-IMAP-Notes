@@ -4,6 +4,7 @@ import com.sun.mail.imap.IMAPFolder;
 
 import net.zp1.iosimapnotes.model.Account;
 import net.zp1.iosimapnotes.model.Note;
+import net.zp1.iosimapnotes.model.NoteImage;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -78,11 +79,21 @@ public final class ImapRepository {
     }
 
     public Note create(Account account, String password, String title, String bodyHtml) throws Exception {
+        return create(account, password, title, bodyHtml, Collections.<NoteImage>emptyList());
+    }
+
+    public Note create(
+            Account account,
+            String password,
+            String title,
+            String bodyHtml,
+            List<NoteImage> images
+    ) throws Exception {
         try (Connection connection = connect(account, password)) {
             Folder folder = openFolder(connection.store, account.mailbox, Folder.READ_WRITE);
             try {
                 MimeMessage message = AppleNoteCodec.build(
-                        connection.session, title, bodyHtml, account.username, "", ""
+                        connection.session, title, bodyHtml, account.username, "", "", images
                 );
                 Message remote = appendAndResolve(folder, message);
                 return parseRemote(account, folder, remote);
@@ -106,7 +117,8 @@ public final class ImapRepository {
                         note.bodyHtml,
                         note.fromAddress.isEmpty() ? account.username : note.fromAddress,
                         note.createdDate,
-                        note.uuid
+                        note.uuid,
+                        note.images
                 );
                 Message remote = appendAndResolve(folder, replacement);
                 Note saved = parseRemote(account, folder, remote);

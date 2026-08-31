@@ -1,12 +1,73 @@
 const { ImapFlow } = require("imapflow");
+const path = require("node:path");
+const { Worker } = require("node:worker_threads");
 const {
   APPLE_NOTE_UTI,
   buildAppleNoteSource,
-  parseAppleNoteSource,
   sourceRevision,
 } = require("./apple-note");
 
 const CONNECTION_TIMEOUT = 20_000;
+let parserWorker = null;
+let parserRequestId = 0;
+const parserRequests = new Map();
+
+function rejectParserRequests(error) {
+  for (const request of parserRequests.values()) {
+    request.reject(error);
+  }
+  parserRequests.clear();
+}
+
+function getParserWorker() {
+  if (parserWorker) {
+    return parserWorker;
+  }
+  const worker = new Worker(path.join(__dirname, "note-parser-worker.js"));
+  worker.unref();
+  worker.on("message", message => {
+    const request = parserRequests.get(message.id);
+    if (!request) {
+      return;
+    }
+    parserRequests.delete(message.id);
+    if (message.ok) {
+      request.resolve(message.note);
+    } else {
+      request.reject(new Error(message.error || "The note could not be parsed."));
+    }
+  });
+  worker.on("error", error => {
+    if (parserWorker === worker) {
+      parserWorker = null;
+    }
+    rejectParserRequests(error);
+  });
+  worker.on("exit", code => {
+    const wasCurrent = parserWorker === worker;
+    if (wasCurrent) {
+      parserWorker = null;
+    }
+    if (wasCurrent && code !== 0) {
+      rejectParserRequests(new Error(`The note parser stopped unexpectedly (${code}).`));
+    }
+  });
+  parserWorker = worker;
+  return worker;
+}
+
+function parseAppleNoteSource(source, metadata) {
+  const id = ++parserRequestId;
+  return new Promise((resolve, reject) => {
+    parserRequests.set(id, { resolve, reject });
+    try {
+      getParserWorker().postMessage({ id, source: Buffer.from(source), metadata });
+    } catch (error) {
+      parserRequests.delete(id);
+      reject(error);
+    }
+  });
+}
 
 function createClient(account, password) {
   return new ImapFlow({
@@ -43,7 +104,7 @@ async function testAccount(account, password) {
   });
 }
 
-async function syncAccount(account, password) {
+async function syncAccount(account, password, cachedNotes = []) {
   return withClient(account, password, async client => {
     const lock = await client.getMailboxLock(account.mailbox, { readOnly: true });
     try {
@@ -52,14 +113,27 @@ async function syncAccount(account, password) {
         header: { "x-uniform-type-identifier": APPLE_NOTE_UTI },
       }, { uid: true }) || [];
       if (!uids.length) {
-        return [];
+        return { notes: [], changed: cachedNotes.length > 0 };
+      }
+      const uidSet = new Set(uids.map(uid => String(uid)));
+      const reusable = cachedNotes.filter(note =>
+        String(note.home?.uidValidity) === uidValidity
+          && uidSet.has(String(note.home?.uid))
+      );
+      const reusableUids = new Set(reusable.map(note => String(note.home.uid)));
+      const missingUids = uids.filter(uid => !reusableUids.has(String(uid)));
+      if (!missingUids.length) {
+        return {
+          notes: reusable,
+          changed: reusable.length !== cachedNotes.length,
+        };
       }
       const messages = await client.fetchAll(
-        uids,
+        missingUids,
         { source: true, internalDate: true, uid: true },
         { uid: true },
       );
-      const notes = [];
+      const notes = [...reusable];
       for (const message of messages) {
         const note = await parseAppleNoteSource(message.source, {
           accountId: account.id,
@@ -73,7 +147,7 @@ async function syncAccount(account, password) {
           notes.push(note);
         }
       }
-      return notes;
+      return { notes, changed: true };
     } finally {
       lock.release();
     }
@@ -115,6 +189,7 @@ async function createImapNote(account, password, input) {
       const built = await buildAppleNoteSource({
         title: input.title,
         bodyHtml: input.bodyHtml,
+        images: input.images,
         from: account.user,
       });
       const appended = await client.append(account.mailbox, built.source, ["\\Seen"], built.date);
@@ -144,6 +219,7 @@ async function saveImapNote(account, password, note) {
       const built = await buildAppleNoteSource({
         title: note.title,
         bodyHtml: note.bodyHtml,
+        images: note.images,
         from: note.home.from || account.user,
         createdDate: note.home.createdDate,
         uuid: note.home.uuid,

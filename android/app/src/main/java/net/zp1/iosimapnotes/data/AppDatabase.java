@@ -8,13 +8,14 @@ import android.database.sqlite.SQLiteOpenHelper;
 
 import net.zp1.iosimapnotes.model.Account;
 import net.zp1.iosimapnotes.model.Note;
+import net.zp1.iosimapnotes.model.NoteImage;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public final class AppDatabase extends SQLiteOpenHelper {
     private static final String NAME = "ios-imap-notes.db";
-    private static final int VERSION = 2;
+    private static final int VERSION = 3;
 
     public AppDatabase(Context context) {
         super(context.getApplicationContext(), NAME, null, VERSION);
@@ -32,6 +33,7 @@ public final class AppDatabase extends SQLiteOpenHelper {
                 + "uuid TEXT NOT NULL, revision TEXT NOT NULL, created_date TEXT NOT NULL, from_address TEXT NOT NULL, "
                 + "read_only INTEGER NOT NULL DEFAULT 0, unsupported_reason TEXT NOT NULL DEFAULT '')");
         db.execSQL("CREATE INDEX note_account_date ON note(account_id, updated_at DESC)");
+        createNoteImageTable(db);
     }
 
     @Override
@@ -39,6 +41,17 @@ public final class AppDatabase extends SQLiteOpenHelper {
         if (oldVersion < 2) {
             db.execSQL("ALTER TABLE account ADD COLUMN authentication TEXT NOT NULL DEFAULT 'auto'");
         }
+        if (oldVersion < 3) {
+            createNoteImageTable(db);
+        }
+    }
+
+    private static void createNoteImageTable(SQLiteDatabase db) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS note_image ("
+                + "note_id TEXT NOT NULL, content_id TEXT NOT NULL COLLATE NOCASE, "
+                + "content_type TEXT NOT NULL, filename TEXT NOT NULL, data BLOB NOT NULL, "
+                + "PRIMARY KEY(note_id, content_id))");
+        db.execSQL("CREATE INDEX IF NOT EXISTS note_image_note ON note_image(note_id)");
     }
 
     public synchronized Account getAccount(long id) {
@@ -91,6 +104,8 @@ public final class AppDatabase extends SQLiteOpenHelper {
         SQLiteDatabase db = getWritableDatabase();
         db.beginTransaction();
         try {
+            db.delete("note_image", "note_id IN (SELECT id FROM note WHERE account_id = ?)",
+                    new String[]{String.valueOf(accountId)});
             db.delete("note", "account_id = ?", new String[]{String.valueOf(accountId)});
             db.delete("account", "id = ?", new String[]{String.valueOf(accountId)});
             db.setTransactionSuccessful();
@@ -124,9 +139,11 @@ public final class AppDatabase extends SQLiteOpenHelper {
         SQLiteDatabase db = getWritableDatabase();
         db.beginTransaction();
         try {
+            db.delete("note_image", "note_id IN (SELECT id FROM note WHERE account_id = ?)",
+                    new String[]{String.valueOf(accountId)});
             db.delete("note", "account_id = ?", new String[]{String.valueOf(accountId)});
             for (Note note : notes) {
-                db.insertWithOnConflict("note", null, noteValues(note), SQLiteDatabase.CONFLICT_REPLACE);
+                saveNoteRecord(db, note);
             }
             db.setTransactionSuccessful();
         } finally {
@@ -135,13 +152,49 @@ public final class AppDatabase extends SQLiteOpenHelper {
     }
 
     public synchronized void saveNote(Note note) {
-        getWritableDatabase().insertWithOnConflict(
-                "note", null, noteValues(note), SQLiteDatabase.CONFLICT_REPLACE
-        );
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            saveNoteRecord(db, note);
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
     }
 
     public synchronized void deleteNote(String id) {
-        getWritableDatabase().delete("note", "id = ?", new String[]{id});
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            db.delete("note_image", "note_id = ?", new String[]{id});
+            db.delete("note", "id = ?", new String[]{id});
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
+    }
+
+    private static void saveNoteRecord(SQLiteDatabase db, Note note) {
+        long inserted = db.insertWithOnConflict(
+                "note", null, noteValues(note), SQLiteDatabase.CONFLICT_REPLACE
+        );
+        if (inserted < 0) {
+            throw new IllegalStateException("Die Notiz konnte nicht lokal gespeichert werden.");
+        }
+        db.delete("note_image", "note_id = ?", new String[]{note.id});
+        for (NoteImage image : note.images) {
+            ContentValues values = new ContentValues();
+            values.put("note_id", note.id);
+            values.put("content_id", image.contentId);
+            values.put("content_type", image.contentType);
+            values.put("filename", image.filename);
+            values.put("data", image.data);
+            if (db.insertWithOnConflict(
+                    "note_image", null, values, SQLiteDatabase.CONFLICT_REPLACE
+            ) < 0) {
+                throw new IllegalStateException("Ein Notizbild konnte nicht lokal gespeichert werden.");
+            }
+        }
     }
 
     private static ContentValues noteValues(Note note) {
@@ -176,7 +229,7 @@ public final class AppDatabase extends SQLiteOpenHelper {
         return account;
     }
 
-    private static Note readNote(Cursor cursor) {
+    private Note readNote(Cursor cursor) {
         Note note = new Note();
         note.id = cursor.getString(cursor.getColumnIndexOrThrow("id"));
         note.accountId = cursor.getLong(cursor.getColumnIndexOrThrow("account_id"));
@@ -192,6 +245,19 @@ public final class AppDatabase extends SQLiteOpenHelper {
         note.fromAddress = cursor.getString(cursor.getColumnIndexOrThrow("from_address"));
         note.readOnly = cursor.getInt(cursor.getColumnIndexOrThrow("read_only")) != 0;
         note.unsupportedReason = cursor.getString(cursor.getColumnIndexOrThrow("unsupported_reason"));
+        try (Cursor images = getReadableDatabase().query(
+                "note_image", null, "note_id = ?", new String[]{note.id},
+                null, null, "rowid ASC"
+        )) {
+            while (images.moveToNext()) {
+                note.images.add(new NoteImage(
+                        images.getString(images.getColumnIndexOrThrow("content_id")),
+                        images.getString(images.getColumnIndexOrThrow("content_type")),
+                        images.getString(images.getColumnIndexOrThrow("filename")),
+                        images.getBlob(images.getColumnIndexOrThrow("data"))
+                ));
+            }
+        }
         return note;
     }
 }

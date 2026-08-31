@@ -5,6 +5,18 @@ body.ios-imap-notes-editing {
   background: var(--ios-notes-editor-background, Canvas);
 }
 
+.ios-imap-notes-inline-image {
+  display: block;
+  margin: 12px 0;
+  max-width: 100%;
+}
+
+.ios-imap-notes-inline-image > img {
+  display: block;
+  height: auto;
+  max-width: 100%;
+}
+
 #ios-imap-notes-editor-shell {
   min-height: calc(100vh - 2px);
   display: flex;
