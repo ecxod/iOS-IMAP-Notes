@@ -1,10 +1,18 @@
 {
-  "notesHeader": {
-    "schema": "experiments/notesHeader/schema.json",
-    "parent": {
-      "scopes": ["addon_parent"],
-      "script": "experiments/notesHeader/implementation.js",
-      "paths": [["notesHeader"]]
+  "browser_specific_settings": {
+    "gecko": {
+      "strict_max_version": "154.*",
+      "update_url": "https://raw.githubusercontent.com/ecxod/iOS-IMAP-Notes/master/updates/header-controls.json"
+    }
+  },
+  "experiment_apis": {
+    "notesHeader": {
+      "schema": "experiments/notesHeader/schema.json",
+      "parent": {
+        "scopes": ["addon_parent"],
+        "script": "experiments/notesHeader/implementation.js",
+        "paths": [["notesHeader"]]
+      }
     }
   }
 }

@@ -78,6 +78,15 @@ on addons.thunderbird.net and is offered on GitHub instead. This restriction is
 a store distribution policy; it is not caused by a known defect in the editor,
 Apple synchronization or the `notesHeader` implementation.
 
+Updates stay on their respective distribution channels. The Standard edition
+contains no custom update URL and is updated by Thunderbird through
+addons.thunderbird.net. The Header Controls edition uses Thunderbird's built-in
+extension updater with the HTTPS manifest at
+`updates/header-controls.json`, which points only to Header Controls XPIs on
+this project's GitHub Releases page and verifies the selected XPI with SHA-256.
+There is no custom updater code and no note, message or account data is sent
+during the version check.
+
 When an Apple Note is displayed, **Edit note** in the Message Header Toolbar
 enables editing directly inside the Message Body. During editing, the same
 action becomes **Save note**. In the Header Controls edition, the usual email
@@ -201,7 +210,7 @@ release must include the generated `.exe`, `.exe.blockmap` and `latest.yml` file
 
 ## Compatibility
 
-Version 1.4.2 targets Thunderbird 128 and newer. The Standard edition uses only
+Version 1.4.3 targets Thunderbird 128 and newer. The Standard edition uses only
 built-in MailExtension APIs and has no Experiment-specific maximum version. The
 Header Controls edition is limited to Thunderbird 154 because its native Message
 Header Toolbar integration must be verified for each new Thunderbird major

@@ -58,6 +58,9 @@ if [ "$variant" = "header-controls" ]; then
 fi
 
 cd "$stage_dir"
-zip -q -r "$output_file" .
+# Keep release bytes reproducible across local builds and GitHub runners. This
+# lets the update manifest pin the exact Header Controls XPI with SHA-256.
+find . -exec touch -t 200001010000 {} +
+find . -type f -print | LC_ALL=C sort | zip -X -q "$output_file" -@
 
 printf '%s\n' "$output_file"
