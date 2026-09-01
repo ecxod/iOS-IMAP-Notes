@@ -10,6 +10,10 @@ import {
   waitForAppleNote,
 } from "./scripts/apple-note.mjs";
 import { createRawAppleNoteMessage } from "./scripts/rfc822.mjs";
+import {
+  addNewNoteHeaderListener,
+  setNoteHeaderMode,
+} from "./scripts/header-controls.mjs";
 
 const EDIT_MENU_ID = "iosNotesEdit";
 const NEW_NOTE_MENU_ID = "iosNotesNew";
@@ -127,7 +131,7 @@ async function showInlineImages(tabId, messageId) {
 
 async function updateAction(tabId, appleNote, mode = "view", editable = true) {
   try {
-    await browser.notesHeader.setNoteMode(
+    await setNoteHeaderMode(
       tabId,
       appleNote,
       text("newNote", "New note"),
@@ -572,7 +576,7 @@ browser.messageDisplayAction.onClicked.addListener(async tab => {
   }
 });
 
-browser.notesHeader.onNewNote.addListener(async tabId => {
+addNewNoteHeaderListener(async tabId => {
   try {
     await createNote({}, await browser.tabs.get(tabId));
   } catch (error) {

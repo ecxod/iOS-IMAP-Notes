@@ -30,15 +30,25 @@ jobs:
       - name: Test Apple Notes MIME handling
         run: npm test
 
-      - name: Build XPI
-        run: npm run build:xpi
+      - name: Build standard and Header Controls XPIs
+        run: npm run build:xpi:all
 
       - name: Read extension version
         id: version
         run: echo "version=$(node -p "require('./manifest.json').version")" >> "$GITHUB_OUTPUT"
 
-      - name: Verify XPI
-        run: unzip -t "dist/thunderbird-ios-imap-notes-${{ steps.version.outputs.version }}.xpi"
+      - name: Verify XPI variants
+        run: |
+          standard="dist/thunderbird-ios-imap-notes-${{ steps.version.outputs.version }}.xpi"
+          header_controls="dist/thunderbird-ios-imap-notes-${{ steps.version.outputs.version }}-header-controls.xpi"
+          unzip -t "$standard"
+          unzip -t "$header_controls"
+          test "$(unzip -p "$standard" manifest.json | jq 'has("experiment_apis")')" = false
+          test "$(unzip -p "$header_controls" manifest.json | jq 'has("experiment_apis")')" = true
+          ! unzip -Z1 "$standard" | grep -q '^experiments/'
+          unzip -Z1 "$header_controls" | grep -q '^experiments/notesHeader/implementation.js$'
+          ! unzip -p "$standard" scripts/header-controls.mjs | grep -q 'browser.notesHeader'
+          unzip -p "$header_controls" scripts/header-controls.mjs | grep -q 'browser.notesHeader'
 
       - name: Upload XPI artifact
         uses: actions/upload-artifact@v4

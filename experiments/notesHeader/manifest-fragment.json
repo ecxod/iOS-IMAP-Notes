@@ -1,0 +1,10 @@
+{
+  "notesHeader": {
+    "schema": "experiments/notesHeader/schema.json",
+    "parent": {
+      "scopes": ["addon_parent"],
+      "script": "experiments/notesHeader/implementation.js",
+      "paths": [["notesHeader"]]
+    }
+  }
+}

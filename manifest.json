@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "__MSG_extName__",
   "description": "__MSG_extDescription__",
-  "version": "1.4.0",
+  "version": "1.4.2",
   "author": "Christian Eichert",
   "developer": {
     "name": "Christian Eichert, Jesse Lujack, John Bieling"
@@ -11,8 +11,7 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "iOSNotes@siliconvenice.net",
-      "strict_min_version": "128.0",
-      "strict_max_version": "154.*"
+      "strict_min_version": "128.0"
     }
   },
   "options_ui": {
@@ -40,16 +39,6 @@
   },
   "background": {
     "page": "background.html"
-  },
-  "experiment_apis": {
-    "notesHeader": {
-      "schema": "experiments/notesHeader/schema.json",
-      "parent": {
-        "scopes": ["addon_parent"],
-        "script": "experiments/notesHeader/implementation.js",
-        "paths": [["notesHeader"]]
-      }
-    }
   },
   "message_display_action": {
     "default_title": "__MSG_editNote__",

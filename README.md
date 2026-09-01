@@ -1,6 +1,6 @@
 # iOS IMAP Notes
 
-This project provides two editors for Apple Notes stored as IMAP messages:
+This project provides three clients for Apple Notes stored as IMAP messages:
 
 - a Thunderbird extension that edits a note directly in Thunderbird's Message Pane;
 - an optional Electron desktop application with a local cache and multi-account
@@ -50,12 +50,40 @@ must not be committed to the repository.
 The extension recognizes Apple Notes by their
 `X-Uniform-Type-Identifier: com.apple.mail-note` header.
 
+### Standard and Header Controls editions
+
+Two Thunderbird XPI editions are published from the same source and share the
+same add-on ID. Install only one edition at a time:
+
+| Edition | File | Distribution | Native email actions in note mode |
+| --- | --- | --- | --- |
+| Standard | `thunderbird-ios-imap-notes-<version>.xpi` | GitHub and [Thunderbird Add-ons](https://addons.thunderbird.net/thunderbird/addon/ios-imap-notes/) | Remain visible and enabled |
+| Header Controls | `thunderbird-ios-imap-notes-<version>-header-controls.xpi` | [GitHub Releases](https://github.com/ecxod/iOS-IMAP-Notes/releases) | Reply, Forward, Archive, Junk and Star are disabled |
+
+The Standard edition uses only built-in Thunderbird MailExtension APIs. It is
+the edition submitted to addons.thunderbird.net. Its inline editor, Apple Note
+creation, conflict protection, MIME handling, context menus and keyboard
+shortcuts do not require an Experiment API.
+
+The Header Controls edition additionally uses the narrowly scoped
+`notesHeader` Experiment to distinguish notes from ordinary email in
+Thunderbird's native Message Header Toolbar. It adds a **New note** button and
+disables inappropriate email actions while a verified Apple Note is displayed;
+the normal controls are restored immediately for ordinary email.
+
+The Thunderbird Add-ons team is phasing out support for Experiment APIs and
+does not accept new submissions that add Experiment surface to an existing
+add-on. The Header Controls edition is therefore not accepted for distribution
+on addons.thunderbird.net and is offered on GitHub instead. This restriction is
+a store distribution policy; it is not caused by a known defect in the editor,
+Apple synchronization or the `notesHeader` implementation.
+
 When an Apple Note is displayed, **Edit note** in the Message Header Toolbar
 enables editing directly inside the Message Body. During editing, the same
-action becomes **Save note**. The usual email actions in that toolbar are
-disabled for Apple Notes, except **Delete** and **More**, and a **New note**
-button is added. For ordinary email messages, Thunderbird's normal actions are
-enabled again and **Edit note** remains visible but disabled.
+action becomes **Save note**. In the Header Controls edition, the usual email
+actions in that toolbar are disabled for Apple Notes, except **Delete** and
+**More**, and a **New note** button is added. The Standard edition deliberately
+leaves Thunderbird's native email actions unchanged.
 
 Selecting an Apple Note enters edit mode locally. Nothing is written back to
 IMAP until **Save note** is explicitly activated.
@@ -64,9 +92,9 @@ Before saving, the extension compares the current message with the revision
 opened in the editor and checks for a newer message with the same Apple Note
 UUID. A concurrent change aborts the save instead of overwriting the other copy.
 
-This conditional toolbar customization uses a narrowly scoped Experiment API.
-Thunderbird therefore describes the add-on permission as full access during
-installation; the Experiment only changes the Message Header Toolbar UI.
+Only the Header Controls edition requests full, unrestricted Thunderbird access
+during installation. Its Experiment changes the Message Header Toolbar UI and
+does not participate in parsing, editing or saving Apple Notes.
 
 A new Apple Note can be created in the currently selected writable folder by:
 
@@ -111,11 +139,15 @@ Requirements: Node.js and `zip`.
 npm test
 npm run check
 npm run build:xpi
+npm run build:xpi:header-controls
 ```
 
-The resulting extension is written to
-`dist/thunderbird-ios-imap-notes-<version>.xpi`. The XPI intentionally excludes
-the Electron application and SunEditor.
+The resulting extensions are written to
+`dist/thunderbird-ios-imap-notes-<version>.xpi` and
+`dist/thunderbird-ios-imap-notes-<version>-header-controls.xpi`. Both XPIs
+intentionally exclude the Electron application and SunEditor. The Standard XPI
+also excludes the Experiment schema and implementation and contains no call to
+`browser.notesHeader`.
 
 ## Desktop editor
 
@@ -169,10 +201,12 @@ release must include the generated `.exe`, `.exe.blockmap` and `latest.yml` file
 
 ## Compatibility
 
-Version 1.4.0 targets Thunderbird 128 through 154. Because the Message Header
-Toolbar integration uses a MailExtension Experiment, each new Thunderbird major
-version must be verified before its compatibility limit is raised. Older
-releases remain available for Thunderbird 115 and earlier extension behavior.
+Version 1.4.2 targets Thunderbird 128 and newer. The Standard edition uses only
+built-in MailExtension APIs and has no Experiment-specific maximum version. The
+Header Controls edition is limited to Thunderbird 154 because its native Message
+Header Toolbar integration must be verified for each new Thunderbird major
+version. Older releases remain available for Thunderbird 115 and earlier
+extension behavior.
 
 ## Contributors
 
