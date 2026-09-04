@@ -47,6 +47,7 @@ jobs:
           test "$(unzip -p "$header_controls" manifest.json | jq 'has("experiment_apis")')" = true
           test "$(unzip -p "$standard" manifest.json | jq '.browser_specific_settings.gecko | has("update_url")')" = false
           test "$(unzip -p "$header_controls" manifest.json | jq -r '.browser_specific_settings.gecko.update_url')" = "https://raw.githubusercontent.com/ecxod/iOS-IMAP-Notes/master/updates/header-controls.json"
+          ! unzip -Z1 "$standard" | grep -Eq '^images/(check\.png|spinner\.gif)$'
           expected_hash=$(jq -r '.addons["iOSNotes@siliconvenice.net"].updates[-1].update_hash' updates/header-controls.json)
           actual_hash="sha256:$(sha256sum "$header_controls" | cut -d ' ' -f 1)"
           test "$expected_hash" = "$actual_hash"

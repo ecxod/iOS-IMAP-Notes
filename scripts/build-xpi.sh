@@ -37,6 +37,17 @@ cp -R \
   message-display \
   options \
   "$stage_dir/"
+
+# The Standard edition is submitted to ATN. Keep its package limited to files
+# that are actually referenced so the Thunderbird review linter stays clean.
+# Header Controls remains byte-stable between releases because its update
+# manifest pins the exact XPI hash.
+if [ "$variant" = "standard" ]; then
+  rm -f \
+    "$stage_dir/images/check.png" \
+    "$stage_dir/images/spinner.gif"
+fi
+
 mkdir -p "$stage_dir/scripts"
 cp \
   scripts/apple-note.mjs \

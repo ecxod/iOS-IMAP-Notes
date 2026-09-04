@@ -1,7 +1,7 @@
 {
   "name": "ios-imap-notes-offline",
   "productName": "iOS IMAP Notes Offline",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "description": "Offline desktop notes editor companion for iOS IMAP Notes",
   "author": "Christian Eichert",
   "license": "GPL-3.0-only",
