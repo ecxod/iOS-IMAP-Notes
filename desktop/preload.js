@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld("notesApi", Object.freeze({
     list: () => ipcRenderer.invoke("settings:list"),
     save: settings => ipcRenderer.invoke("settings:save", settings),
     test: account => ipcRenderer.invoke("settings:test", account),
+    ensureMailbox: accountId => ipcRenderer.invoke("settings:ensure-mailbox", accountId),
   }),
   updates: Object.freeze({
     getState: () => ipcRenderer.invoke("updates:get-state"),

@@ -231,6 +231,70 @@ button:disabled {
   overflow: hidden;
 }
 
+.note-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 0;
+  gap: 0.2rem;
+  padding: 0.35rem 0.45rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-bottom: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
+  background: color-mix(in srgb, Canvas 94%, CanvasText 6%);
+  scrollbar-width: thin;
+}
+
+.note-tabs[hidden] {
+  display: none;
+}
+
+.note-tab {
+  display: flex;
+  flex: 0 1 15rem;
+  min-width: 7rem;
+  max-width: 18rem;
+  align-items: stretch;
+  border: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
+  border-bottom: 0;
+  border-radius: 0.45rem 0.45rem 0 0;
+  background: color-mix(in srgb, Canvas 90%, CanvasText 10%);
+}
+
+.note-tab[aria-current="true"] {
+  border-color: AccentColor;
+  background: Canvas;
+}
+
+.note-tab-select,
+.note-tab-close {
+  min-height: 2.15rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.note-tab-select {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  padding-right: 0.2rem;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-tab-dirty {
+  color: AccentColor;
+  font-weight: 700;
+}
+
+.note-tab-close {
+  flex: 0 0 auto;
+  padding: 0.2rem 0.5rem;
+  font-size: 1rem;
+}
+
 .editor-header {
   flex: 0 0 auto;
 }

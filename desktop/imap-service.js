@@ -104,8 +104,30 @@ async function testAccount(account, password) {
   });
 }
 
+async function ensureMailboxWithClient(client, mailbox) {
+  const exists = async () => (await client.list()).some(item => item.path === mailbox);
+  if (await exists()) {
+    return false;
+  }
+  try {
+    await client.mailboxCreate(mailbox);
+    return true;
+  } catch (error) {
+    // A simultaneous client may have created it after list().
+    if (await exists()) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+async function ensureMailbox(account, password) {
+  return withClient(account, password, client => ensureMailboxWithClient(client, account.mailbox));
+}
+
 async function syncAccount(account, password, cachedNotes = []) {
   return withClient(account, password, async client => {
+    await ensureMailboxWithClient(client, account.mailbox);
     const lock = await client.getMailboxLock(account.mailbox, { readOnly: true });
     try {
       const uidValidity = String(client.mailbox.uidValidity);
@@ -184,6 +206,7 @@ async function verifyCurrentSource(client, note) {
 
 async function createImapNote(account, password, input) {
   return withClient(account, password, async client => {
+    await ensureMailboxWithClient(client, account.mailbox);
     const lock = await client.getMailboxLock(account.mailbox);
     try {
       const built = await buildAppleNoteSource({
@@ -269,6 +292,8 @@ async function deleteImapNote(account, password, note) {
 module.exports = {
   createImapNote,
   deleteImapNote,
+  ensureMailbox,
+  ensureMailboxWithClient,
   saveImapNote,
   syncAccount,
   testAccount,

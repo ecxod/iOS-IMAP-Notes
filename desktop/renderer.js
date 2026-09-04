@@ -1,8 +1,10 @@
-/* global NotePaste, NoteSearch, SUNEDITOR */
+/* global NotePaste, NoteSearch, NoteTabs, SUNEDITOR */
 
 let notes = [];
 let accounts = [];
 let selected = null;
+let openTabs = [];
+let activeTabId = null;
 let editor = null;
 let dirty = false;
 let suppressChanges = false;
@@ -18,10 +20,13 @@ const DATA_IMAGE_PATTERN = /^data:(image\/(?:gif|jpeg|png|webp));base64,([a-z0-9
 const CONTENT_ID_PATTERN = /^[^<>\s\r\n]+$/;
 
 const list = document.getElementById("note-list");
+const tabList = document.getElementById("note-tabs");
 const title = document.getElementById("note-title");
 const saveState = document.getElementById("save-state");
 const syncState = document.getElementById("sync-state");
 const emptyState = document.getElementById("empty-state");
+const emptyStateTitle = document.getElementById("empty-state-title");
+const emptyStateCopy = document.getElementById("empty-state-copy");
 const editorArea = document.getElementById("editor-area");
 const saveButton = document.getElementById("save-note");
 const deleteButton = document.getElementById("delete-note");
@@ -317,6 +322,10 @@ async function useUpdateButton() {
   if (currentUpdateState?.status === "downloaded"
       && canLeaveCurrentNote()
       && window.confirm(`Install version ${currentUpdateState.availableVersion} and restart the app?`)) {
+    for (const tab of openTabs) {
+      tab.dirty = false;
+    }
+    dirty = false;
     await window.notesApi.updates.install();
   }
 }
@@ -340,19 +349,171 @@ function homeLabel(note) {
   return `${account?.name || "Unknown account"} · ${note.home.mailbox}`;
 }
 
+function activeTab() {
+  return openTabs.find(tab => tab.id === activeTabId) || null;
+}
+
+function scopeLabel(scope) {
+  if (scope === "local") {
+    return "Local notes";
+  }
+  const account = accounts.find(item => item.id === scope);
+  return account ? `${account.name} · ${account.mailbox}` : "Unknown account";
+}
+
+function tabLabel(tab) {
+  if (!tab.noteId) {
+    return `${scopeLabel(tab.scope)} — Empty`;
+  }
+  if (tab.id === activeTabId && selected) {
+    return title.value.trim() || "New note";
+  }
+  return tab.note?.title || "New note";
+}
+
+function renderTabs() {
+  tabList.replaceChildren();
+  tabList.hidden = openTabs.length === 0;
+  for (const tab of openTabs) {
+    const item = document.createElement("div");
+    item.className = "note-tab";
+    item.setAttribute("aria-current", String(tab.id === activeTabId));
+
+    const select = document.createElement("button");
+    select.type = "button";
+    select.className = "note-tab-select";
+    select.id = `note-tab-${tab.id}`;
+    select.setAttribute("role", "tab");
+    select.setAttribute("aria-selected", String(tab.id === activeTabId));
+    select.title = tabLabel(tab);
+    select.append(tabLabel(tab));
+    if (tab.dirty) {
+      const marker = document.createElement("span");
+      marker.className = "note-tab-dirty";
+      marker.textContent = " •";
+      marker.setAttribute("aria-label", "Unsaved changes");
+      select.append(marker);
+    }
+    select.addEventListener("click", () => activateTab(tab.id));
+
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "note-tab-close";
+    close.textContent = "×";
+    close.title = `Close ${tabLabel(tab)}`;
+    close.setAttribute("aria-label", close.title);
+    close.addEventListener("click", () => closeTab(tab.id));
+    item.append(select, close);
+    tabList.append(item);
+  }
+}
+
+function captureActiveTab() {
+  const tab = activeTab();
+  if (!tab || !selected) {
+    return true;
+  }
+  try {
+    const current = currentNoteData({ allowReadOnly: true });
+    tab.note = { ...selected, ...current };
+    tab.noteId = selected.id;
+    tab.scope = NoteTabs.scopeForNote(selected);
+    tab.dirty = dirty;
+    selected = tab.note;
+    return true;
+  } catch (error) {
+    saveState.textContent = errorText(error);
+    return false;
+  }
+}
+
+function displayActiveTab() {
+  const tab = activeTab();
+  if (!tab) {
+    showEmptyState();
+  } else if (tab.note) {
+    showSelectedNote(tab.note, { isDirty: tab.dirty });
+  } else {
+    showEmptyState({ scope: tab.scope });
+  }
+}
+
+function activateTab(tabId, { capture = true } = {}) {
+  if (tabId === activeTabId) {
+    return true;
+  }
+  if (capture && !captureActiveTab()) {
+    return false;
+  }
+  activeTabId = tabId;
+  selectionRequest += 1;
+  displayActiveTab();
+  return true;
+}
+
+function closeTab(tabId) {
+  const index = openTabs.findIndex(tab => tab.id === tabId);
+  if (index < 0) {
+    return;
+  }
+  const tab = openTabs[index];
+  if (tab.dirty && !window.confirm(`Discard unsaved changes in “${tabLabel(tab)}”?`)) {
+    return;
+  }
+  openTabs.splice(index, 1);
+  if (tabId === activeTabId) {
+    activeTabId = openTabs[Math.min(index, openTabs.length - 1)]?.id || null;
+    selectionRequest += 1;
+    displayActiveTab();
+  } else {
+    renderTabs();
+  }
+}
+
+function addEmptyTab(scope) {
+  if (!captureActiveTab()) {
+    return null;
+  }
+  const tab = { id: crypto.randomUUID(), noteId: null, note: null, scope, dirty: false };
+  openTabs.push(tab);
+  activeTabId = tab.id;
+  selectionRequest += 1;
+  displayActiveTab();
+  return tab;
+}
+
 function setDirty(value) {
+  const tab = activeTab();
+  const changed = dirty !== value || (tab && tab.dirty !== value);
   dirty = value;
+  if (tab) {
+    tab.dirty = value;
+  }
   saveState.textContent = value ? "Unsaved" : selected ? "Saved" : "";
   saveButton.disabled = !selected || !value || Boolean(selected.readOnly);
+  if (changed) {
+    renderTabs();
+  }
 }
 
 function canLeaveCurrentNote() {
-  return !dirty || window.confirm("Discard unsaved changes?");
+  captureActiveTab();
+  const dirtyTabs = openTabs.filter(tab => tab.dirty);
+  if (!dirtyTabs.length) {
+    return true;
+  }
+  if (!window.confirm(`Discard unsaved changes in ${dirtyTabs.length} open tab${dirtyTabs.length === 1 ? "" : "s"}?`)) {
+    return false;
+  }
+  return true;
 }
 
 function closeApplication() {
   if (!canLeaveCurrentNote()) {
     return;
+  }
+  for (const tab of openTabs) {
+    tab.dirty = false;
   }
   dirty = false;
   window.notesApi.close();
@@ -473,7 +634,7 @@ function renderList() {
   }
 }
 
-function showSelectedNote(note) {
+function showSelectedNote(note, { isDirty = false } = {}) {
   selected = note;
   suppressChanges = true;
   title.value = note.title;
@@ -490,18 +651,21 @@ function showSelectedNote(note) {
   deleteButton.disabled = false;
   exportButton.disabled = false;
   pastePlainTextButton.disabled = Boolean(note.readOnly);
-  setDirty(false);
+  setDirty(isDirty);
   if (note.readOnly) {
     saveState.textContent = note.unsupportedReason
       || "This note contains unsupported content and is read-only.";
   }
   renderList();
+  renderTabs();
   updateSearchHighlights();
 }
 
-function showEmptyState() {
+function showEmptyState({ scope = null } = {}) {
   clearSearchHighlights();
+  clearManagedImageUrls();
   selected = null;
+  dirty = false;
   title.value = "";
   title.disabled = true;
   noteHome.textContent = "";
@@ -510,15 +674,49 @@ function showEmptyState() {
   pastePlainTextButton.disabled = true;
   emptyState.hidden = false;
   editorArea.hidden = true;
+  emptyStateTitle.textContent = "No note selected";
+  emptyStateCopy.textContent = scope
+    ? `Select a note from ${scopeLabel(scope)} or create a new note there.`
+    : "Create a note, configure an IMAP account, or synchronize your accounts.";
   setDirty(false);
   renderList();
+  renderTabs();
 }
 
-async function selectNote(id, { force = false, confirmDiscard = true } = {}) {
-  if (!force && id === selected?.id) {
+function openNoteInTab(note) {
+  const target = NoteTabs.noteTarget(openTabs, activeTabId, note);
+  if (target.action === "activate") {
+    activateTab(target.tabId);
     return;
   }
-  if (confirmDiscard && !canLeaveCurrentNote()) {
+  if (!captureActiveTab()) {
+    return;
+  }
+  if (target.action === "reuse") {
+    const tab = openTabs.find(item => item.id === target.tabId);
+    tab.note = note;
+    tab.noteId = note.id;
+    tab.scope = NoteTabs.scopeForNote(note);
+    tab.dirty = false;
+    activeTabId = tab.id;
+  } else {
+    const tab = {
+      id: crypto.randomUUID(),
+      noteId: note.id,
+      note,
+      scope: NoteTabs.scopeForNote(note),
+      dirty: false,
+    };
+    openTabs.push(tab);
+    activeTabId = tab.id;
+  }
+  displayActiveTab();
+}
+
+async function selectNote(id) {
+  const alreadyOpen = openTabs.find(tab => tab.noteId === id);
+  if (alreadyOpen) {
+    activateTab(alreadyOpen.id);
     return;
   }
   const request = ++selectionRequest;
@@ -529,10 +727,10 @@ async function selectNote(id, { force = false, confirmDiscard = true } = {}) {
       return;
     }
     if (!note) {
-      showEmptyState();
+      await refreshNotes();
       return;
     }
-    showSelectedNote(note);
+    openNoteInTab(note);
   } catch (error) {
     if (request === selectionRequest) {
       saveState.textContent = errorText(error);
@@ -540,14 +738,28 @@ async function selectNote(id, { force = false, confirmDiscard = true } = {}) {
   }
 }
 
-async function reloadNotes(preferredId = selected?.id) {
+async function refreshNotes() {
   notes = (await window.notesApi.list()).sort((a, b) => b.updatedAt - a.updatedAt);
-  const note = notes.find(item => item.id === preferredId) || notes[0];
-  if (note) {
-    await selectNote(note.id, { force: true, confirmDiscard: false });
+  renderList();
+}
+
+async function reconcileCleanTabs() {
+  const active = activeTab();
+  for (const tab of openTabs) {
+    if (!tab.noteId || tab.dirty) {
+      continue;
+    }
+    if (notes.some(note => note.id === tab.noteId)) {
+      tab.note = await window.notesApi.get(tab.noteId);
+    } else {
+      tab.note = null;
+      tab.noteId = null;
+    }
+  }
+  if (active && active.id === activeTabId) {
+    displayActiveTab();
   } else {
-    selectionRequest += 1;
-    showEmptyState();
+    renderTabs();
   }
 }
 
@@ -578,6 +790,29 @@ async function loadSettings() {
   return settings;
 }
 
+async function changeAccountFilter() {
+  renderList();
+  const scope = accountFilter.value;
+  const target = NoteTabs.accountTarget(openTabs, activeTabId, scope);
+  if (target.action === "activate") {
+    activateTab(target.tabId);
+  } else if (target.action === "create") {
+    addEmptyTab(scope);
+  }
+  if (scope === "all" || scope === "local") {
+    return;
+  }
+  syncState.textContent = `Checking ${scopeLabel(scope)}…`;
+  try {
+    const result = await window.notesApi.settings.ensureMailbox(scope);
+    syncState.textContent = result.created
+      ? `Created folder “${result.mailbox}” in ${scopeLabel(scope)}`
+      : `Folder “${result.mailbox}” is ready in ${scopeLabel(scope)}`;
+  } catch (error) {
+    syncState.textContent = errorText(error);
+  }
+}
+
 function updateNewNoteFolder() {
   const account = accounts.find(item => item.id === newNoteHome.value);
   newNoteFolder.textContent = account
@@ -586,9 +821,6 @@ function updateNewNoteFolder() {
 }
 
 function openNewNoteDialog(input = null) {
-  if (!canLeaveCurrentNote()) {
-    return;
-  }
   pendingCreateInput = input;
   const filter = accountFilter.value;
   const defaultAccount = accounts.find(account => account.id === filter && account.enabled)
@@ -600,13 +832,17 @@ function openNewNoteDialog(input = null) {
 }
 
 async function completeCreateNote() {
+  if (!captureActiveTab()) {
+    throw new Error("The current tab could not be preserved.");
+  }
   const note = await window.notesApi.create({
     accountId: newNoteHome.value,
     title: pendingCreateInput?.title || "New note",
     bodyHtml: sanitizeHtml(pendingCreateInput?.bodyHtml || "<div><br></div>"),
   });
   pendingCreateInput = null;
-  await reloadNotes(note.id);
+  await refreshNotes();
+  openNoteInTab(note);
   syncState.textContent = `Created in ${homeLabel(note)}`;
   title.focus();
   title.select();
@@ -621,7 +857,17 @@ async function saveNote() {
     saveButton.disabled = true;
     saveState.textContent = selected.home?.kind === "imap" ? "Saving to IMAP…" : "Saving…";
     const result = await window.notesApi.save(note);
-    await reloadNotes(result.note.id);
+    const tab = activeTab();
+    if (tab) {
+      tab.note = result.note;
+      tab.noteId = result.note.id;
+      tab.scope = NoteTabs.scopeForNote(result.note);
+      tab.dirty = false;
+    }
+    selected = result.note;
+    dirty = false;
+    await refreshNotes();
+    displayActiveTab();
     if (result.warning) {
       saveState.textContent = "Saved with warning";
       window.alert(result.warning);
@@ -637,18 +883,22 @@ async function deleteNote() {
     return;
   }
   try {
+    const deletedTab = activeTab();
+    const deletedIndex = openTabs.indexOf(deletedTab);
     await window.notesApi.delete(selected.id);
+    if (deletedIndex >= 0) {
+      openTabs.splice(deletedIndex, 1);
+    }
+    activeTabId = openTabs[Math.min(Math.max(deletedIndex, 0), openTabs.length - 1)]?.id || null;
     selected = null;
-    await reloadNotes();
+    await refreshNotes();
+    displayActiveTab();
   } catch (error) {
     saveState.textContent = errorText(error);
   }
 }
 
 async function importNote() {
-  if (!canLeaveCurrentNote()) {
-    return;
-  }
   const imported = await window.notesApi.import();
   if (imported) {
     openNewNoteDialog(imported);
@@ -667,7 +917,7 @@ async function exportNote() {
 }
 
 async function syncNotes() {
-  if (!canLeaveCurrentNote()) {
+  if (!captureActiveTab()) {
     return;
   }
   syncState.textContent = "Synchronizing…";
@@ -679,7 +929,8 @@ async function syncNotes() {
     syncState.textContent = errors.length
       ? `${errors.length} account error: ${errors.map(item => `${item.accountName}: ${item.error}`).join("; ")}`
       : `${count} IMAP notes synchronized`;
-    await reloadNotes();
+    await refreshNotes();
+    await reconcileCleanTabs();
   } catch (error) {
     syncState.textContent = errorText(error);
   } finally {
@@ -774,7 +1025,7 @@ async function saveSettings() {
   if (!form.reportValidity()) {
     return;
   }
-  settingsState.textContent = "Encrypting and saving…";
+  settingsState.textContent = "Creating missing Notes folders and saving…";
   try {
     const accountValues = [...accountList.querySelectorAll(".account-card")].map(collectAccount);
     await window.notesApi.settings.save({ accounts: accountValues });
@@ -836,12 +1087,25 @@ async function init() {
   exportButton.addEventListener("click", exportNote);
   pastePlainTextButton.addEventListener("pointerdown", event => event.preventDefault());
   pastePlainTextButton.addEventListener("click", pastePlainText);
-  title.addEventListener("input", () => selected && setDirty(true));
+  title.addEventListener("input", () => {
+    if (!selected) {
+      return;
+    }
+    selected.title = title.value;
+    const tab = activeTab();
+    if (tab?.note) {
+      tab.note.title = title.value;
+    }
+    setDirty(true);
+    renderTabs();
+  });
   searchInput.addEventListener("input", () => {
     renderList();
     scheduleSearchHighlights();
   });
-  accountFilter.addEventListener("change", renderList);
+  accountFilter.addEventListener("change", () => {
+    changeAccountFilter().catch(error => { syncState.textContent = errorText(error); });
+  });
   newNoteHome.addEventListener("change", updateNewNoteFolder);
   document.getElementById("new-note-form").addEventListener("submit", event => {
     if (event.submitter?.value !== "create") {
@@ -877,7 +1141,7 @@ async function init() {
     }
   });
   window.addEventListener("beforeunload", event => {
-    if (dirty) {
+    if (dirty || openTabs.some(tab => tab.dirty)) {
       event.preventDefault();
       event.returnValue = "";
     }
@@ -886,7 +1150,12 @@ async function init() {
 
   await initializeUpdates();
   await loadSettings();
-  await reloadNotes();
+  await refreshNotes();
+  if (notes[0]) {
+    await selectNote(notes[0].id);
+  } else {
+    showEmptyState();
+  }
   if (accounts.some(account => account.enabled)) {
     await syncNotes();
   }

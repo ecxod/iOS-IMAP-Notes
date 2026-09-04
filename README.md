@@ -166,6 +166,13 @@ host, port, TLS mode, username and Notes folder for each account. On Windows,
 passwords are encrypted for the signed-in user with DPAPI through Electron's
 `safeStorage`; passwords are never written to the notes cache.
 
+Opened notes remain available in separate, closeable editor tabs, including
+unsaved changes while another tab is active. Selecting an account on the left
+opens an account-bound empty tab when the current tab belongs to another
+account; empty tabs cannot be created manually and are reused when a note from
+that account is opened. When an account is added, selected or synchronized, the
+configured Notes folder is created automatically if it is missing.
+
 JPEG, PNG, GIF and WebP images can be inserted with SunEditor's image button.
 Existing Apple Notes images are displayed inline and saved with their original
 Content-ID; unsupported attachments keep a synchronized note read-only.

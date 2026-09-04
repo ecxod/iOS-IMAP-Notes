@@ -13,6 +13,7 @@
   <script defer src="vendor/suneditor/suneditor.min.js"></script>
   <script defer src="search-utils.js"></script>
   <script defer src="paste-utils.js"></script>
+  <script defer src="tab-utils.js"></script>
   <script defer src="renderer.js"></script>
 </head>
 <body>
@@ -48,6 +49,7 @@
   </aside>
 
   <main class="workspace">
+    <nav id="note-tabs" class="note-tabs" role="tablist" aria-label="Open notes" hidden></nav>
     <header class="editor-header">
       <input id="note-title" type="text" maxlength="500" aria-label="Note title" placeholder="Note title">
       <span id="note-home"></span>
@@ -65,8 +67,8 @@
       <button id="close-app" type="button" title="Close application">Close</button>
     </header>
     <section id="empty-state">
-      <h2>No note selected</h2>
-      <p>Create a note, configure an IMAP account, or synchronize your accounts.</p>
+      <h2 id="empty-state-title">No note selected</h2>
+      <p id="empty-state-copy">Create a note, configure an IMAP account, or synchronize your accounts.</p>
     </section>
     <section id="editor-area" hidden>
       <textarea id="editor"></textarea>

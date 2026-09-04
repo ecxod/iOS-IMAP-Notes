@@ -14,6 +14,7 @@ const {
 const {
   createImapNote,
   deleteImapNote,
+  ensureMailbox,
   saveImapNote,
   syncAccount,
   testAccount,
@@ -364,6 +365,7 @@ async function saveSettings(input) {
   const accountInputs = Array.isArray(input?.accounts) ? input.accounts : [];
   const ids = new Set();
   const accounts = [];
+  const mailboxesToEnsure = [];
   for (const value of accountInputs) {
     const account = normalizeAccount(value);
     if (ids.has(account.id)) {
@@ -377,8 +379,15 @@ async function saveSettings(input) {
     if (!passwordCipher) {
       throw new Error(`Enter a password for ${account.name}.`);
     }
+    if (!previous || previous.mailbox !== account.mailbox) {
+      const password = account.password || (previous ? await decryptPassword(previous) : "");
+      mailboxesToEnsure.push({ account, password });
+    }
     delete account.password;
     accounts.push({ ...account, passwordCipher });
+  }
+  for (const item of mailboxesToEnsure) {
+    await ensureMailbox(item.account, item.password);
   }
   await writeJson(settingsFile(), { version: SETTINGS_VERSION, accounts });
   return listSettings();
@@ -402,6 +411,12 @@ async function testAccountSettings(input) {
     password = await decryptPassword(saved);
   }
   return testAccount(candidate, password);
+}
+
+async function ensureAccountMailbox(accountId) {
+  const { account, password } = await resolveAccount(accountId);
+  const created = await ensureMailbox(account, password);
+  return { created, mailbox: account.mailbox };
 }
 
 function serializeOperation(action) {
@@ -602,6 +617,9 @@ function registerHandlers() {
   handle("settings:list", listSettings);
   handle("settings:save", (_event, input) => serializeOperation(() => saveSettings(input)));
   handle("settings:test", (_event, input) => testAccountSettings(input));
+  handle("settings:ensure-mailbox", (_event, accountId) => (
+    serializeOperation(() => ensureAccountMailbox(accountId))
+  ));
   handle("updates:get-state", () => ({ ...updateState }));
   handle("updates:check", checkForUpdates);
   handle("updates:download", downloadUpdate);
