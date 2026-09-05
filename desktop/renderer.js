@@ -24,6 +24,7 @@ const DATA_IMAGE_PATTERN = /^data:(image\/(?:gif|jpeg|png|webp));base64,([a-z0-9
 const CONTENT_ID_PATTERN = /^[^<>\s\r\n]+$/;
 
 const list = document.getElementById("note-list");
+const tabBar = document.getElementById("note-tabs-bar");
 const tabList = document.getElementById("note-tabs");
 const title = document.getElementById("note-title");
 const saveState = document.getElementById("save-state");
@@ -442,7 +443,7 @@ function tabLabel(tab) {
 
 function renderTabs() {
   tabList.replaceChildren();
-  tabList.hidden = openTabs.length === 0;
+  tabBar.hidden = openTabs.length === 0;
   for (const tab of openTabs) {
     const item = document.createElement("div");
     item.className = "note-tab";
@@ -475,6 +476,22 @@ function renderTabs() {
     item.append(select, close);
     tabList.append(item);
   }
+}
+
+function closeAllEditors() {
+  if (!captureActiveTab()) {
+    return;
+  }
+  const dirtyTabs = openTabs.filter(tab => tab.dirty);
+  if (dirtyTabs.length && !window.confirm(
+    `Discard unsaved changes in ${dirtyTabs.length} open editor${dirtyTabs.length === 1 ? "" : "s"}?`,
+  )) {
+    return;
+  }
+  openTabs = [];
+  activeTabId = null;
+  selectionRequest += 1;
+  displayActiveTab();
 }
 
 function captureActiveTab() {
@@ -791,7 +808,17 @@ async function submitAiPrompt() {
     setDirty(true);
     aiPrompt.value = "";
     resizeAiPrompt();
-    setStatus(aiState, "Inserted at the cursor position. Save the note to keep it.", "success");
+    setStatus(aiState, "Inserted at the cursor position. Saving…", "working");
+    const saveResult = await saveNote();
+    if (!saveResult.ok) {
+      setStatus(aiState, `The answer was inserted, but could not be saved: ${errorText(saveResult.error)}`);
+    } else if (saveResult.newerChanges) {
+      setStatus(aiState, "The answer was saved. Newer changes remain unsaved.", "success");
+    } else if (saveResult.warning) {
+      setStatus(aiState, "The answer was saved with a warning.", "success");
+    } else {
+      setStatus(aiState, "Inserted at the cursor position and saved.", "success");
+    }
   } catch (error) {
     setStatus(aiState, errorText(error));
     try {
@@ -1186,32 +1213,75 @@ async function completeCreateNote() {
 }
 
 async function saveNote() {
+  const requestedTabId = activeTabId;
+  const requestedNoteId = selected?.id || null;
+  const requestedTitle = title.value;
+  const requestedEditorHtml = String(editor?.getContents() || "");
   try {
     const note = currentNoteData();
     if (!note) {
-      return;
+      return { ok: false, error: new Error("There is no editable note to save.") };
     }
     saveButton.disabled = true;
     saveState.textContent = selected.home?.kind === "imap" ? "Saving to IMAP…" : "Saving…";
     const result = await window.notesApi.save(note);
-    const tab = activeTab();
+    const savedNote = {
+      ...result.note,
+      bodyHtml: note.bodyHtml,
+      images: note.images,
+    };
+    const tab = openTabs.find(item => item.id === requestedTabId);
     if (tab) {
-      tab.note = result.note;
-      tab.noteId = result.note.id;
-      tab.scope = NoteTabs.scopeForNote(result.note);
+      tab.note = savedNote;
+      tab.noteId = savedNote.id;
+      tab.scope = NoteTabs.scopeForNote(savedNote);
       tab.dirty = false;
     }
-    selected = result.note;
-    dirty = false;
-    await refreshNotes();
-    displayActiveTab();
+
+    const {
+      bodyHtml: _savedBodyHtml,
+      images: _savedImages,
+      ...savedSummary
+    } = result.note;
+    const listIndex = notes.findIndex(item => item.id === savedSummary.id);
+    if (listIndex >= 0) {
+      notes[listIndex] = savedSummary;
+    } else {
+      notes.push(savedSummary);
+    }
+    notes.sort((a, b) => b.updatedAt - a.updatedAt);
+
+    const stillActive = activeTabId === requestedTabId && selected?.id === requestedNoteId;
+    const newerChanges = stillActive && (
+      title.value !== requestedTitle
+      || String(editor?.getContents() || "") !== requestedEditorHtml
+    );
+    if (stillActive) {
+      selected = savedNote;
+      if (newerChanges) {
+        const currentDraft = currentNoteData();
+        tab.note = { ...savedNote, ...currentDraft };
+        tab.dirty = true;
+        selected = tab.note;
+        dirty = true;
+        saveButton.disabled = false;
+        saveState.textContent = "Saved, but newer changes are unsaved";
+      } else {
+        dirty = false;
+        setDirty(false);
+      }
+    }
+    renderList();
+    renderTabs();
     if (result.warning) {
       saveState.textContent = "Saved with warning";
       window.alert(result.warning);
     }
+    return { ok: true, warning: result.warning || "", newerChanges };
   } catch (error) {
     saveState.textContent = errorText(error);
-    saveButton.disabled = false;
+    saveButton.disabled = !selected || !dirty || Boolean(selected.readOnly);
+    return { ok: false, error };
   }
 }
 
@@ -1731,6 +1801,7 @@ async function init() {
   document.getElementById("import-note").addEventListener("click", importNote);
   document.getElementById("sync-notes").addEventListener("click", syncNotes);
   document.getElementById("open-settings").addEventListener("click", openSettings);
+  document.getElementById("close-all-editors").addEventListener("click", closeAllEditors);
   document.getElementById("open-dev-tools").addEventListener("click", () => {
     window.notesApi.diagnostics.openDevTools();
   });

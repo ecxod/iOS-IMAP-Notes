@@ -68,7 +68,14 @@
   </aside>
 
   <main class="workspace">
-    <nav id="note-tabs" class="note-tabs" role="tablist" aria-label="Open notes" hidden></nav>
+    <div id="note-tabs-bar" class="note-tabs-bar" hidden>
+      <nav id="note-tabs" class="note-tabs" role="tablist" aria-label="Open notes"></nav>
+      <button id="close-all-editors" type="button" class="icon-button" title="Close all editors" aria-label="Close all editors">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M4 7l7 7M11 7l-7 7M13 10l7 7M20 10l-7 7"></path>
+        </svg>
+      </button>
+    </div>
     <header class="editor-header">
       <input id="note-title" type="text" maxlength="500" aria-label="Note title" placeholder="Note title">
       <span id="note-home"></span>

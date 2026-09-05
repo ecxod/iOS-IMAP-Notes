@@ -16,6 +16,7 @@ test("editor actions use icon-only buttons with accessible tooltips", async () =
     ["save-note", "Save Note"],
     ["export-note", "Export Note"],
     ["close-app", "Close"],
+    ["close-all-editors", "Close all editors"],
   ]) {
     const button = html.match(new RegExp(`<button id="${id}"[^>]*>[\\s\\S]*?</button>`))?.[0];
     assert.ok(button, `${id} button is missing`);
@@ -24,6 +25,18 @@ test("editor actions use icon-only buttons with accessible tooltips", async () =
     assert.match(button, new RegExp(`aria-label="${label}"`));
     assert.doesNotMatch(button.replace(/<svg[\s\S]*<\/svg>/, ""), />\s*[A-Za-z]+\s*</);
   }
+});
+
+test("all open editors can be closed with one confirmation for dirty tabs", async () => {
+  const [html, renderer, styles] = await Promise.all([
+    readFile(path.join(desktopRoot, "index.html"), "utf8"),
+    readFile(path.join(desktopRoot, "renderer.js"), "utf8"),
+    readFile(path.join(desktopRoot, "styles.css"), "utf8"),
+  ]);
+  assert.match(html, /id="note-tabs-bar"[\s\S]*id="close-all-editors"[^>]*title="Close all editors"/);
+  assert.match(renderer, /function closeAllEditors\(\)[\s\S]*captureActiveTab\(\)[\s\S]*dirtyTabs\.length[\s\S]*openTabs = \[\][\s\S]*displayActiveTab\(\)/);
+  assert.match(renderer, /getElementById\("close-all-editors"\)\.addEventListener\("click", closeAllEditors\)/);
+  assert.match(styles, /\.note-tabs-bar\[hidden\]\s*{\s*display: none/);
 });
 
 test("editor converts visible Markdown text to safe HTML on demand", async () => {
@@ -134,4 +147,16 @@ test("notes are normalized before SunEditor receives list content", async () => 
   assert.match(html, /<script defer src="editor-html\.js"><\/script>[\s\S]*renderer\.js/);
   assert.match(renderer, /NoteEditorHtml\.normalizeForSunEditor\(sanitizeHtml\(template\.innerHTML\)\)/);
   assert.match(packageJson, /"editor-html\.js"/);
+});
+
+test("saving keeps the editor DOM intact while refreshing saved metadata", async () => {
+  const renderer = await readFile(path.join(desktopRoot, "renderer.js"), "utf8");
+  const saveFunction = renderer.slice(
+    renderer.indexOf("async function saveNote()"),
+    renderer.indexOf("async function noteDraftForTransfer"),
+  );
+  assert.match(saveFunction, /bodyHtml: note\.bodyHtml,[\s\S]*images: note\.images/);
+  assert.match(saveFunction, /notes\[listIndex\] = savedSummary/);
+  assert.match(saveFunction, /title\.value !== requestedTitle[\s\S]*editor\?\.getContents/);
+  assert.doesNotMatch(saveFunction, /refreshNotes\(\)|displayActiveTab\(\)|editor\.setContents/);
 });

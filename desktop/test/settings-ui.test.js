@@ -70,6 +70,9 @@ test("editor shows a growing AI prompt bar only for configured providers", async
   assert.match(renderer, /selectedText,/);
   assert.match(renderer, /restoreEditorInsertionPoint\(insertionRange\)/);
   assert.match(renderer, /editor\.insertHTML\(aiExchangeHtml/);
+  assert.match(renderer, /setStatus\(aiState, "Inserted at the cursor position\. Saving…", "working"\);[\s\S]*await saveNote\(\)/);
+  assert.match(renderer, /"Inserted at the cursor position and saved\."/);
+  assert.doesNotMatch(renderer, /Save the note to keep it/);
   assert.match(renderer, /sanitizeGeneratedMarkdownHtml\(responseHtml\)/);
   assert.match(renderer, /result\.html \|\| NotePaste\.plainTextToHtml\(result\.text\)/);
   assert.match(renderer, /selected\?\.id !== requestedNoteId \|\| activeTabId !== requestedTabId/);
