@@ -160,3 +160,9 @@ test("saving keeps the editor DOM intact while refreshing saved metadata", async
   assert.match(saveFunction, /title\.value !== requestedTitle[\s\S]*editor\?\.getContents/);
   assert.doesNotMatch(saveFunction, /refreshNotes\(\)|displayActiveTab\(\)|editor\.setContents/);
 });
+
+test("editor actions focus the editable element instead of a missing SunEditor method", async () => {
+  const renderer = await readFile(path.join(desktopRoot, "renderer.js"), "utf8");
+  assert.match(renderer, /function focusEditor\(\)[\s\S]*querySelector\("\.sun-editor-editable"\)[\s\S]*editable\.focus\(\)/);
+  assert.doesNotMatch(renderer, /editor\.focus\(\)/);
+});

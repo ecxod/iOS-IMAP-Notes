@@ -628,6 +628,13 @@ function currentNoteData({ allowReadOnly = false } = {}) {
   };
 }
 
+function focusEditor() {
+  const editable = editorArea.querySelector(".sun-editor-editable");
+  if (editable instanceof HTMLElement) {
+    editable.focus();
+  }
+}
+
 async function pastePlainText() {
   if (!selected || !editor || editorArea.hidden) {
     return;
@@ -638,7 +645,7 @@ async function pastePlainText() {
       return;
     }
     editor.insertHTML(NotePaste.plainTextToHtml(text), true, false);
-    editor.focus();
+    focusEditor();
     setDirty(true);
     scheduleSearchHighlights();
   } catch (error) {
@@ -1521,7 +1528,7 @@ async function convertMarkdownToHtml() {
     }
     loadedImageMetadata = [];
     setDirty(true);
-    editor.focus();
+    focusEditor();
     scheduleSearchHighlights();
   } catch (error) {
     saveState.textContent = errorText(error);
