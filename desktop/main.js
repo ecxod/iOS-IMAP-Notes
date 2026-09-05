@@ -16,6 +16,7 @@ const {
 } = require("./conversation-import");
 const { commitConversationVersion, readConversationState } = require("./conversation-history");
 const { fetchSharedConversation } = require("./shared-conversation-fetcher");
+const { commonSpellcheckLanguages, resolveSpellcheckSettings } = require("./spellcheck-utils");
 const {
   MAX_IMAGE_BYTES,
   MAX_NOTE_LENGTH,
@@ -33,6 +34,7 @@ const {
 } = require("./imap-service");
 
 const SETTINGS_VERSION = 1;
+const SPELLCHECK_SETTINGS_VERSION = 1;
 const NOTES_VERSION = 2;
 let operationQueue = Promise.resolve();
 let notesCache = null;
@@ -163,6 +165,10 @@ function settingsFile() {
   return dataFile("settings.json");
 }
 
+function spellcheckSettingsFile() {
+  return dataFile("spellcheck.json");
+}
+
 function conversationHistoryRoot() {
   return dataFile("conversation-history");
 }
@@ -183,6 +189,124 @@ async function writeJson(filename, value) {
   await fs.mkdir(path.dirname(filename), { recursive: true });
   await fs.writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, "utf8");
   await fs.rename(temporary, filename);
+}
+
+async function configureSpellChecker(electronSession) {
+  const stored = await readJson(spellcheckSettingsFile(), null);
+  const settings = resolveSpellcheckSettings(
+    stored,
+    electronSession.availableSpellCheckerLanguages,
+    app.getLocale(),
+  );
+  electronSession.setSpellCheckerEnabled(settings.enabled);
+  if (settings.language) {
+    electronSession.setSpellCheckerLanguages([settings.language]);
+  }
+  return settings;
+}
+
+function saveSpellcheckSettings(settings) {
+  writeJson(spellcheckSettingsFile(), {
+    version: SPELLCHECK_SETTINGS_VERSION,
+    enabled: settings.enabled,
+    language: settings.language,
+  }).catch(error => console.error("Could not save spell-checking settings:", error));
+}
+
+function applySpellcheckSettings(electronSession, changes) {
+  const current = {
+    enabled: electronSession.spellCheckerEnabled,
+    language: electronSession.getSpellCheckerLanguages()[0] || "",
+  };
+  const settings = resolveSpellcheckSettings(
+    { ...current, ...changes },
+    electronSession.availableSpellCheckerLanguages,
+    app.getLocale(),
+  );
+  electronSession.setSpellCheckerEnabled(settings.enabled);
+  if (settings.language) {
+    electronSession.setSpellCheckerLanguages([settings.language]);
+  }
+  saveSpellcheckSettings(settings);
+}
+
+function spellcheckLanguageLabel(code) {
+  try {
+    const name = new Intl.DisplayNames(["en"], { type: "language" }).of(code);
+    return name && name.toLowerCase() !== code.toLowerCase() ? `${name} (${code})` : code;
+  } catch {
+    return code;
+  }
+}
+
+function spellcheckLanguageItem(electronSession, code, currentLanguage) {
+  return {
+    label: spellcheckLanguageLabel(code),
+    type: "radio",
+    checked: code === currentLanguage,
+    click: () => applySpellcheckSettings(electronSession, { enabled: true, language: code }),
+  };
+}
+
+function spellcheckLanguageMenu(electronSession) {
+  const available = electronSession.availableSpellCheckerLanguages;
+  const current = electronSession.getSpellCheckerLanguages()[0] || "";
+  const common = commonSpellcheckLanguages(available, current);
+  const remaining = available
+    .filter(code => !common.includes(code))
+    .sort((left, right) => spellcheckLanguageLabel(left).localeCompare(spellcheckLanguageLabel(right), "en"));
+  const items = common.map(code => spellcheckLanguageItem(electronSession, code, current));
+  if (remaining.length) {
+    if (items.length) {
+      items.push({ type: "separator" });
+    }
+    items.push({
+      label: "More languages",
+      submenu: remaining.map(code => spellcheckLanguageItem(electronSession, code, current)),
+    });
+  }
+  return items;
+}
+
+function showEditorContextMenu(window, params) {
+  const webContents = window.webContents;
+  const electronSession = webContents.session;
+  const template = [];
+  if (params.misspelledWord) {
+    if (params.dictionarySuggestions.length) {
+      template.push(...params.dictionarySuggestions.slice(0, 8).map(suggestion => ({
+        label: suggestion,
+        click: () => webContents.replaceMisspelling(suggestion),
+      })));
+    } else {
+      template.push({ label: "No spelling suggestions", enabled: false });
+    }
+    template.push({
+      label: "Add to dictionary",
+      click: () => electronSession.addWordToSpellCheckerDictionary(params.misspelledWord),
+    });
+    template.push({ type: "separator" });
+  }
+  template.push(
+    { label: "Paste", role: "paste" },
+    {
+      label: "Paste Plain Text",
+      click: () => webContents.send("editor:paste-plain-text"),
+    },
+    { type: "separator" },
+    {
+      label: "Check spelling",
+      type: "checkbox",
+      checked: electronSession.spellCheckerEnabled,
+      click: item => applySpellcheckSettings(electronSession, { enabled: item.checked }),
+    },
+    {
+      label: "Spelling language",
+      enabled: electronSession.availableSpellCheckerLanguages.length > 0,
+      submenu: spellcheckLanguageMenu(electronSession),
+    },
+  );
+  Menu.buildFromTemplate(template).popup({ window });
 }
 
 function normalizeHome(value) {
@@ -800,18 +924,6 @@ function registerHandlers() {
     serializeOperation(() => importSharedConversation(event, input))
   ));
   handle("clipboard:read-text", () => clipboard.readText());
-  handle("editor:show-context-menu", event => {
-    const window = BrowserWindow.fromWebContents(event.sender);
-    const menu = Menu.buildFromTemplate([
-      { label: "Paste", role: "paste" },
-      {
-        label: "Paste Plain Text",
-        click: () => event.sender.send("editor:paste-plain-text"),
-      },
-    ]);
-    menu.popup({ window });
-    return true;
-  });
   handle("settings:list", listSettings);
   handle("settings:save", (_event, input) => serializeOperation(() => saveSettings(input)));
   handle("settings:test", (_event, input) => testAccountSettings(input));
@@ -844,6 +956,14 @@ async function createWindow() {
   });
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", event => event.preventDefault());
+  window.webContents.on("context-menu", (event, params) => {
+    if (!params.isEditable || params.formControlType !== "none") {
+      return;
+    }
+    event.preventDefault();
+    showEditorContextMenu(window, params);
+  });
+  await configureSpellChecker(window.webContents.session);
   await window.loadFile("index.html");
 }
 

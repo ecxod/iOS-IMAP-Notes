@@ -36,9 +36,19 @@ test("plain-text paste is offered from the editor context menu instead of the to
   assert.doesNotMatch(html, /id="paste-plain-text"/);
   assert.match(main, /label: "Paste"[\s\S]*role: "paste"/);
   assert.match(main, /label: "Paste Plain Text"/);
-  assert.match(preload, /editor:show-context-menu/);
-  assert.match(renderer, /addEventListener\("contextmenu"/);
+  assert.match(main, /webContents\.on\("context-menu"/);
+  assert.doesNotMatch(preload, /editor:show-context-menu/);
+  assert.doesNotMatch(renderer, /addEventListener\("contextmenu"/);
   assert.match(renderer, /onPastePlainText\(pastePlainText\)/);
+});
+
+test("editor context menu offers spelling suggestions and a persistent language choice", async () => {
+  const main = await readFile(path.join(desktopRoot, "main.js"), "utf8");
+  assert.match(main, /params\.dictionarySuggestions[\s\S]*replaceMisspelling\(suggestion\)/);
+  assert.match(main, /label: "Add to dictionary"[\s\S]*addWordToSpellCheckerDictionary/);
+  assert.match(main, /label: "Check spelling"[\s\S]*spellCheckerEnabled/);
+  assert.match(main, /label: "Spelling language"[\s\S]*spellcheckLanguageMenu/);
+  assert.match(main, /spellcheckSettingsFile\(\)[\s\S]*spellcheck\.json/);
 });
 
 test("the editor bundles and applies Roboto", async () => {

@@ -1245,13 +1245,6 @@ async function init() {
   saveButton.addEventListener("click", saveNote);
   deleteButton.addEventListener("click", deleteNote);
   exportButton.addEventListener("click", exportNote);
-  editorArea.addEventListener("contextmenu", event => {
-    if (!selected || selected.readOnly || !isEditorTarget(event.target)) {
-      return;
-    }
-    event.preventDefault();
-    window.notesApi.editor.showContextMenu();
-  });
   window.notesApi.editor.onPastePlainText(pastePlainText);
   title.addEventListener("input", () => {
     if (!selected) {
