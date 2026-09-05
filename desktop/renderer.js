@@ -10,6 +10,8 @@ let dirty = false;
 let suppressChanges = false;
 let pendingCreateInput = null;
 let loadedImageMetadata = [];
+let availableAiProviders = [];
+let editorInsertionRange = null;
 const managedImageUrls = new Set();
 let selectionRequest = 0;
 let searchHighlightTimer = null;
@@ -28,6 +30,11 @@ const emptyState = document.getElementById("empty-state");
 const emptyStateTitle = document.getElementById("empty-state-title");
 const emptyStateCopy = document.getElementById("empty-state-copy");
 const editorArea = document.getElementById("editor-area");
+const aiCompose = document.getElementById("ai-compose");
+const aiProvider = document.getElementById("ai-provider");
+const aiPrompt = document.getElementById("ai-prompt");
+const aiSubmit = document.getElementById("ai-submit");
+const aiState = document.getElementById("ai-state");
 const saveButton = document.getElementById("save-note");
 const deleteButton = document.getElementById("delete-note");
 const exportButton = document.getElementById("export-note");
@@ -623,6 +630,122 @@ function isEditorTarget(target) {
     && Boolean(target.closest("#editor-area .se-wrapper-wysiwyg"));
 }
 
+function updateAiComposeVisibility() {
+  aiCompose.hidden = !availableAiProviders.length
+    || !selected
+    || selected.readOnly
+    || editorArea.hidden;
+}
+
+function updateAiPromptPlaceholder() {
+  const label = availableAiProviders.find(provider => provider.value === aiProvider.value)?.label
+    || "AI";
+  aiPrompt.placeholder = `Ask ${label} about this note…`;
+}
+
+function configureAiProviders(llmSettings) {
+  const currentProvider = aiProvider.value;
+  availableAiProviders = [];
+  if (llmSettings?.hasGeminiApiKey) {
+    availableAiProviders.push({ value: "gemini", label: "Gemini" });
+  }
+  if (llmSettings?.hasOpenAiApiKey) {
+    availableAiProviders.push({ value: "openai", label: "ChatGPT" });
+  }
+  aiProvider.replaceChildren(
+    ...availableAiProviders.map(provider => new Option(provider.label, provider.value)),
+  );
+  aiProvider.value = availableAiProviders.some(provider => provider.value === currentProvider)
+    ? currentProvider
+    : availableAiProviders[0]?.value || "";
+  updateAiPromptPlaceholder();
+  updateAiComposeVisibility();
+}
+
+function resizeAiPrompt() {
+  aiPrompt.style.height = "auto";
+  aiPrompt.style.height = `${Math.min(aiPrompt.scrollHeight, 160)}px`;
+}
+
+function rememberEditorInsertionPoint() {
+  const editable = editorArea.querySelector(".sun-editor-editable");
+  const selection = window.getSelection();
+  if (!editable || !selection?.rangeCount || !editable.contains(selection.anchorNode)) {
+    return;
+  }
+  editorInsertionRange = selection.getRangeAt(0).cloneRange();
+}
+
+function restoreEditorInsertionPoint(range) {
+  const editable = editorArea.querySelector(".sun-editor-editable");
+  if (!editable) {
+    return;
+  }
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  if (range && editable.contains(range.commonAncestorContainer)) {
+    selection.addRange(range);
+  } else {
+    const endRange = document.createRange();
+    endRange.selectNodeContents(editable);
+    endRange.collapse(false);
+    selection.addRange(endRange);
+  }
+  editable.focus();
+}
+
+function aiExchangeHtml(providerLabel, prompt, response) {
+  const promptHtml = NotePaste.plainTextToHtml(prompt);
+  const responseHtml = NotePaste.plainTextToHtml(response);
+  return [
+    "<div><br></div>",
+    `<div><strong>${providerLabel} prompt:</strong></div>`,
+    `<div>${promptHtml}</div>`,
+    `<div><strong>${providerLabel}:</strong></div>`,
+    `<div>${responseHtml}</div>`,
+  ].join("");
+}
+
+async function submitAiPrompt() {
+  const prompt = aiPrompt.value.trim();
+  if (!prompt || !selected || selected.readOnly || aiSubmit.disabled) {
+    return;
+  }
+  const note = currentNoteData();
+  const requestedNoteId = selected.id;
+  const requestedTabId = activeTabId;
+  const requestedRange = editorInsertionRange?.cloneRange() || null;
+  aiProvider.disabled = true;
+  aiPrompt.disabled = true;
+  aiSubmit.disabled = true;
+  setStatus(aiState, "Waiting for the answer…", "working");
+  try {
+    const result = await window.notesApi.llm.ask({
+      provider: aiProvider.value,
+      prompt,
+      title: note.title,
+      bodyHtml: note.bodyHtml,
+    });
+    if (selected?.id !== requestedNoteId || activeTabId !== requestedTabId) {
+      throw new Error("The active note changed while the answer was being generated. Nothing was inserted.");
+    }
+    restoreEditorInsertionPoint(requestedRange);
+    editor.insertHTML(aiExchangeHtml(result.providerLabel, prompt, result.text), true, false);
+    rememberEditorInsertionPoint();
+    setDirty(true);
+    aiPrompt.value = "";
+    resizeAiPrompt();
+    setStatus(aiState, "Inserted at the cursor position. Save the note to keep it.", "success");
+  } catch (error) {
+    setStatus(aiState, errorText(error));
+  } finally {
+    aiProvider.disabled = false;
+    aiPrompt.disabled = false;
+    aiSubmit.disabled = false;
+    aiPrompt.focus();
+  }
+}
+
 function visibleNotes() {
   const query = searchInput.value.trim();
   const filter = accountFilter.value;
@@ -693,7 +816,9 @@ function renderList() {
 }
 
 function showSelectedNote(note, { isDirty = false } = {}) {
+  const changedNote = selected?.id !== note.id;
   selected = note;
+  editorInsertionRange = null;
   suppressChanges = true;
   title.value = note.title;
   editor.setContents(editorHtmlForNote(note));
@@ -705,6 +830,12 @@ function showSelectedNote(note, { isDirty = false } = {}) {
     : "Stored only on this computer";
   emptyState.hidden = true;
   editorArea.hidden = false;
+  if (changedNote) {
+    aiPrompt.value = "";
+    setStatus(aiState, "", "success");
+    resizeAiPrompt();
+  }
+  updateAiComposeVisibility();
   title.disabled = Boolean(note.readOnly);
   deleteButton.disabled = false;
   exportButton.disabled = false;
@@ -722,6 +853,7 @@ function showEmptyState({ scope = null } = {}) {
   clearSearchHighlights();
   clearManagedImageUrls();
   selected = null;
+  editorInsertionRange = null;
   dirty = false;
   title.value = "";
   title.disabled = true;
@@ -730,6 +862,7 @@ function showEmptyState({ scope = null } = {}) {
   exportButton.disabled = true;
   emptyState.hidden = false;
   editorArea.hidden = true;
+  aiCompose.hidden = true;
   emptyStateTitle.textContent = "No note selected";
   emptyStateCopy.textContent = scope
     ? `Select a note from ${scopeLabel(scope)} or create a new note there.`
@@ -852,6 +985,7 @@ async function loadSettings() {
   geminiApiKey.placeholder = settings.llm?.hasGeminiApiKey
     ? "Stored — leave blank to keep"
     : "Enter API key";
+  configureAiProviders(settings.llm);
   renderAccountChoices();
   renderList();
   return settings;
@@ -1226,6 +1360,20 @@ async function init() {
     }
     scheduleSearchHighlights();
   };
+  document.addEventListener("selectionchange", rememberEditorInsertionPoint);
+  aiProvider.addEventListener("change", updateAiPromptPlaceholder);
+  aiPrompt.addEventListener("input", resizeAiPrompt);
+  aiPrompt.addEventListener("keydown", event => {
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+      event.preventDefault();
+      submitAiPrompt();
+    }
+  });
+  aiCompose.addEventListener("submit", event => {
+    event.preventDefault();
+    submitAiPrompt();
+  });
+  resizeAiPrompt();
 
   document.getElementById("new-note").addEventListener("click", () => openNewNoteDialog());
   document.getElementById("import-note").addEventListener("click", importNote);

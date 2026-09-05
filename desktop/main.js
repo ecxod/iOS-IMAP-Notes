@@ -17,6 +17,7 @@ const {
 const { commitConversationVersion, readConversationState } = require("./conversation-history");
 const { fetchSharedConversation } = require("./shared-conversation-fetcher");
 const { commonSpellcheckLanguages, resolveSpellcheckSettings } = require("./spellcheck-utils");
+const { generateNoteReply } = require("./llm-client");
 const {
   MAX_IMAGE_BYTES,
   MAX_NOTE_LENGTH,
@@ -489,15 +490,46 @@ async function encryptSecret(secret) {
   return safeStorage.encryptString(secret).toString("base64");
 }
 
-async function decryptPassword(account) {
-  if (!account?.passwordCipher) {
-    throw new Error(`No password is stored for ${account?.name || "this account"}.`);
+async function decryptSecret(cipher, missingMessage) {
+  if (!cipher) {
+    throw new Error(missingMessage);
   }
-  const encrypted = Buffer.from(account.passwordCipher, "base64");
+  const encrypted = Buffer.from(cipher, "base64");
   if (typeof safeStorage.decryptStringAsync === "function") {
     return (await safeStorage.decryptStringAsync(encrypted)).result;
   }
   return safeStorage.decryptString(encrypted);
+}
+
+async function decryptPassword(account) {
+  return decryptSecret(
+    account?.passwordCipher,
+    `No password is stored for ${account?.name || "this account"}.`,
+  );
+}
+
+async function askLlm(input) {
+  const provider = String(input?.provider || "").toLowerCase();
+  if (!["openai", "gemini"].includes(provider)) {
+    throw new Error("Choose Gemini or ChatGPT.");
+  }
+  const settings = await readSettingsRaw();
+  const cipher = provider === "gemini"
+    ? settings.llm.geminiApiKeyCipher
+    : provider === "openai"
+      ? settings.llm.openaiApiKeyCipher
+      : "";
+  const apiKey = await decryptSecret(
+    cipher,
+    `No ${provider === "gemini" ? "Gemini" : "OpenAI"} API key is stored.`,
+  );
+  return generateNoteReply({
+    provider,
+    apiKey,
+    prompt: input?.prompt,
+    title: cleanTitle(input?.title),
+    noteText: htmlToSearchText(String(input?.bodyHtml || "")),
+  });
 }
 
 function credentialProtection() {
@@ -923,6 +955,7 @@ function registerHandlers() {
   handle("conversations:import", (event, input) => (
     serializeOperation(() => importSharedConversation(event, input))
   ));
+  handle("llm:ask", (_event, input) => askLlm(input));
   handle("clipboard:read-text", () => clipboard.readText());
   handle("settings:list", listSettings);
   handle("settings:save", (_event, input) => serializeOperation(() => saveSettings(input)));

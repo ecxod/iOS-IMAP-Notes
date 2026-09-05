@@ -34,7 +34,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -420,6 +421,59 @@ button:disabled {
   overflow-y: scroll;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
+}
+
+#ai-compose {
+  width: 100%;
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.45rem;
+  padding: 0.55rem 0.65rem;
+  border-top: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
+  background: color-mix(in srgb, Canvas 96%, CanvasText 4%);
+}
+
+#ai-compose[hidden] {
+  display: none;
+}
+
+#ai-provider,
+#ai-prompt {
+  min-width: 0;
+  min-height: 2.15rem;
+  padding: 0.38rem 0.5rem;
+  border: 1px solid color-mix(in srgb, CanvasText 28%, transparent);
+  border-radius: 0.35rem;
+  background: Field;
+  color: FieldText;
+}
+
+#ai-prompt {
+  max-height: min(10rem, 30vh);
+  overflow-y: auto;
+  line-height: 1.35;
+  resize: none;
+}
+
+#ai-state {
+  min-height: 0;
+  grid-column: 1 / -1;
+  color: #b00020;
+  font-size: 0.75rem;
+}
+
+#ai-state:empty {
+  display: none;
+}
+
+#ai-state[data-state="working"] {
+  color: CanvasText;
+}
+
+#ai-state[data-state="success"] {
+  color: #287c3e;
 }
 
 #note-list::-webkit-scrollbar,

@@ -22,6 +22,25 @@ test("renderer submits API keys without receiving stored plaintext", async () =>
   assert.match(renderer, /settings\.llm\?\.hasGeminiApiKey/);
 });
 
+test("editor shows a growing AI prompt bar only for configured providers", async () => {
+  const [html, preload, renderer, styles] = await Promise.all([
+    readFile(path.join(desktopRoot, "index.html"), "utf8"),
+    readFile(path.join(desktopRoot, "preload.js"), "utf8"),
+    readFile(path.join(desktopRoot, "renderer.js"), "utf8"),
+    readFile(path.join(desktopRoot, "styles.css"), "utf8"),
+  ]);
+  assert.match(html, /<form id="ai-compose" hidden>[\s\S]*id="ai-provider"[\s\S]*id="ai-prompt"[\s\S]*id="ai-submit"/);
+  assert.match(preload, /llm:ask/);
+  assert.match(renderer, /llmSettings\?\.hasGeminiApiKey/);
+  assert.match(renderer, /llmSettings\?\.hasOpenAiApiKey/);
+  assert.match(renderer, /notesApi\.llm\.ask/);
+  assert.match(renderer, /restoreEditorInsertionPoint\(requestedRange\)/);
+  assert.match(renderer, /editor\.insertHTML\(aiExchangeHtml/);
+  assert.match(renderer, /selected\?\.id !== requestedNoteId \|\| activeTabId !== requestedTabId/);
+  assert.match(styles, /#ai-compose\s*{[^}]*width:\s*100%[^}]*grid-template-columns:\s*auto minmax\(0, 1fr\) auto/s);
+  assert.match(styles, /#ai-prompt\s*{[^}]*max-height:[^}]*resize:\s*none/s);
+});
+
 test("new note dialog provides desktop-only public-link import controls", async () => {
   const [html, preload, renderer] = await Promise.all([
     readFile(path.join(desktopRoot, "index.html"), "utf8"),

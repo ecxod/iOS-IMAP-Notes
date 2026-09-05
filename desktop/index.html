@@ -99,6 +99,12 @@
     <section id="editor-area" hidden>
       <textarea id="editor"></textarea>
     </section>
+    <form id="ai-compose" hidden>
+      <select id="ai-provider" aria-label="AI provider"></select>
+      <textarea id="ai-prompt" rows="1" maxlength="20000" aria-label="Prompt for the AI" placeholder="Ask about this note…"></textarea>
+      <button id="ai-submit" type="submit" class="primary">Submit</button>
+      <span id="ai-state" role="status"></span>
+    </form>
   </main>
 
   <dialog id="new-note-dialog">
