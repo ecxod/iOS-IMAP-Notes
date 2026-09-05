@@ -1,4 +1,4 @@
-/* global NotePaste, NoteSearch, NoteTabs, SUNEDITOR */
+/* global NoteImages, NotePaste, NoteSearch, NoteTabs, SUNEDITOR */
 
 let notes = [];
 let accounts = [];
@@ -173,20 +173,56 @@ function editorHtmlForNote(note) {
   return sanitizeHtml(template.innerHTML);
 }
 
-function dataImage(image, originalImages) {
+function downscaledOriginalImage(original, liveImage) {
+  const target = NoteImages.downscaleTarget({
+    originSize: liveImage?.getAttribute("data-origin"),
+    currentSize: liveImage?.getAttribute("data-size"),
+    naturalWidth: liveImage?.naturalWidth,
+    naturalHeight: liveImage?.naturalHeight,
+    displayWidth: liveImage?.getBoundingClientRect().width,
+    displayHeight: liveImage?.getBoundingClientRect().height,
+  });
+  if (!target) {
+    return original;
+  }
+  if (original.contentType === "image/gif") {
+    throw new Error("GIF images cannot be resized safely because that would remove their animation.");
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = target.width;
+  canvas.height = target.height;
+  const context = canvas.getContext("2d");
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.drawImage(liveImage, 0, 0, target.width, target.height);
+  const quality = ["image/jpeg", "image/webp"].includes(original.contentType) ? 0.92 : undefined;
+  const dataUrl = canvas.toDataURL(original.contentType, quality);
+  const prefix = `data:${original.contentType};base64,`;
+  if (!dataUrl.startsWith(prefix)) {
+    throw new Error(`The resized ${original.contentType} image could not be encoded.`);
+  }
+  const dataBase64 = dataUrl.slice(prefix.length);
+  return {
+    ...original,
+    dataBase64,
+    byteLength: atob(dataBase64).length,
+  };
+}
+
+function dataImage(image, originalImages, liveImages) {
   const src = String(image.getAttribute("src") || "");
-  const originalIndex = originalImages.findIndex(value => value.src === src);
-  const original = originalIndex >= 0 ? originalImages.splice(originalIndex, 1)[0] : null;
+  const original = originalImages.find(value => value.src === src) || null;
   if (original) {
+    const resized = downscaledOriginalImage(original, liveImages.get(src));
     return {
-      contentId: cleanContentId(image.dataset.appleContentId || original.contentId)
+      contentId: cleanContentId(image.dataset.appleContentId || resized.contentId)
         || `${crypto.randomUUID().toUpperCase()}@mobilenotes.apple.com`,
-      contentType: original.contentType,
+      contentType: resized.contentType,
       filename: String(
-        image.dataset.appleFilename || original.filename || image.dataset.fileName || "image",
+        image.dataset.appleFilename || resized.filename || image.dataset.fileName || "image",
       ).replace(/[\r\n"\\]/g, "_").slice(0, 240),
-      dataBase64: original.dataBase64,
-      byteLength: original.byteLength,
+      dataBase64: resized.dataBase64,
+      byteLength: resized.byteLength,
     };
   }
   const match = src.match(DATA_IMAGE_PATTERN);
@@ -214,13 +250,15 @@ function dataImage(image, originalImages) {
 }
 
 function collectEditorNote() {
+  const liveImages = new Map([...editorArea.querySelectorAll(".sun-editor-editable img")]
+    .map(image => [String(image.getAttribute("src") || ""), image]));
   const template = document.createElement("template");
   template.innerHTML = String(editor.getContents() || "");
   const images = new Map();
   const originalImages = loadedImageMetadata.map(image => ({ ...image }));
   let totalBytes = 0;
   for (const element of template.content.querySelectorAll("img")) {
-    const image = dataImage(element, originalImages);
+    const image = dataImage(element, originalImages, liveImages);
     const key = image.contentId.toLowerCase();
     const previous = images.get(key);
     if (previous && (previous.contentType !== image.contentType || previous.dataBase64 !== image.dataBase64)) {
