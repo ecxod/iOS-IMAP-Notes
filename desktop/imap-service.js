@@ -218,6 +218,7 @@ async function createImapNote(account, password, input) {
         title: input.title,
         bodyHtml: input.bodyHtml,
         images: input.images,
+        conversation: input.conversation,
         from: account.user,
       });
       const appended = await client.append(account.mailbox, built.source, ["\\Seen"], built.date);
@@ -248,6 +249,7 @@ async function saveImapNote(account, password, note) {
         title: note.title,
         bodyHtml: note.bodyHtml,
         images: note.images,
+        conversation: note.conversation,
         from: note.home.from || account.user,
         createdDate: note.home.createdDate,
         uuid: note.home.uuid,

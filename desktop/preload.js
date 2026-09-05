@@ -9,6 +9,9 @@ contextBridge.exposeInMainWorld("notesApi", Object.freeze({
   sync: () => ipcRenderer.invoke("notes:sync"),
   import: () => ipcRenderer.invoke("notes:import"),
   export: note => ipcRenderer.invoke("notes:export", note),
+  conversations: Object.freeze({
+    import: input => ipcRenderer.invoke("conversations:import", input),
+  }),
   close: () => ipcRenderer.send("app:close-window"),
   clipboard: Object.freeze({
     readText: () => ipcRenderer.invoke("clipboard:read-text"),

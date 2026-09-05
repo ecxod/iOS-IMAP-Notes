@@ -31,6 +31,35 @@ test("builds and parses an Apple IMAP note without losing Unicode", async () => 
   assert.equal(note.home.uuid, built.uuid);
 });
 
+test("round-trips hidden conversation identity without adding it to the note body", async () => {
+  const conversation = {
+    id: "12345678-abcd-4321-abcd-123456789abc",
+    provider: "chatgpt",
+    shareIds: ["share-one", "share-two"],
+    latestSourceRevision: "source-revision",
+  };
+  const built = await buildAppleNoteSource({
+    title: "Local title",
+    bodyHtml: "<section><h3>You</h3><div>Only prompt text</div></section>",
+    from: "notes@example.org",
+    conversation,
+  });
+  const source = built.source.toString("utf8");
+  assert.match(source, /X-iOS-IMAP-Notes-Conversation-ID:/i);
+  assert.doesNotMatch(source.match(/<body>[\s\S]*<\/body>/i)?.[0] || "", /share-one|chatgpt/i);
+  const note = await parseAppleNoteSource(built.source, {
+    accountId: "personal",
+    mailbox: "Notes",
+    uid: 44,
+    uidValidity: 7,
+    internalDate: built.date,
+  });
+  assert.equal(note.conversation.id, conversation.id);
+  assert.equal(note.conversation.provider, "chatgpt");
+  assert.deepEqual(note.conversation.shareIds, ["share-one", "share-two"]);
+  assert.equal(note.conversation.latestSourceRevision, "source-revision");
+});
+
 test("parses an inline Apple image as editable rich content", async () => {
   const source = Buffer.from([
     "From: notes@example.net",

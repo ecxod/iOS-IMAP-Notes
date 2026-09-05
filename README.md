@@ -173,6 +173,16 @@ passwords and API keys are encrypted for the signed-in user with DPAPI through
 Electron's `safeStorage`; credentials are never written to the notes cache or
 returned in plaintext to the renderer.
 
+The Electron application can import public ChatGPT and Gemini share links from
+**Settings**. Only the prompts and answers become note content; provider titles,
+model names, timestamps and other page information are ignored. A title for a
+new note is derived once from its first prompt and is never replaced during an
+update. Imported conversations keep a private Git history in Electron's local
+application-data directory. When a later share link is recognized as a clean
+continuation, new prompt/answer blocks are appended while local edits stay in
+place. Ambiguous or conflicting changes are never applied silently. This import
+feature is intentionally not included in either Thunderbird extension.
+
 Opened notes remain available in separate, closeable editor tabs, including
 unsaved changes while another tab is active. Selecting an account on the left
 opens an account-bound empty tab when the current tab belongs to another

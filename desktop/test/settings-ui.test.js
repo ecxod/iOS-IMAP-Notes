@@ -21,3 +21,23 @@ test("renderer submits API keys without receiving stored plaintext", async () =>
   assert.match(renderer, /settings\.llm\?\.hasOpenAiApiKey/);
   assert.match(renderer, /settings\.llm\?\.hasGeminiApiKey/);
 });
+
+test("settings provide desktop-only public-link import controls", async () => {
+  const [html, preload, renderer] = await Promise.all([
+    readFile(path.join(desktopRoot, "index.html"), "utf8"),
+    readFile(path.join(desktopRoot, "preload.js"), "utf8"),
+    readFile(path.join(desktopRoot, "renderer.js"), "utf8"),
+  ]);
+  for (const id of [
+    "chatgpt-share-link",
+    "gemini-share-link",
+    "import-chatgpt-link",
+    "import-gemini-link",
+    "conversation-import-home",
+  ]) {
+    assert.match(html, new RegExp(`id="${id}"`));
+  }
+  assert.match(html, /Only prompts and answers are synchronized/);
+  assert.match(preload, /conversations:import/);
+  assert.match(renderer, /notesApi\.conversations\.import/);
+});

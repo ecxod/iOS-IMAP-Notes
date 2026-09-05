@@ -6,6 +6,16 @@ const { randomUUID } = require("node:crypto");
 const { updaterErrorMessage } = require("./update-utils");
 const { mergeEncryptedApiKeys, publicApiKeySettings } = require("./secret-settings");
 const {
+  conversationMetadata,
+  conversationNoteTitle,
+  conversationSimilarity,
+  isLikelyContinuation,
+  mergeConversation,
+  renderConversation,
+} = require("./conversation-import");
+const { commitConversationVersion, readConversationState } = require("./conversation-history");
+const { fetchSharedConversation } = require("./shared-conversation-fetcher");
+const {
   MAX_IMAGE_BYTES,
   MAX_NOTE_LENGTH,
   cleanTitle,
@@ -152,6 +162,10 @@ function settingsFile() {
   return dataFile("settings.json");
 }
 
+function conversationHistoryRoot() {
+  return dataFile("conversation-history");
+}
+
 async function readJson(filename, fallback) {
   try {
     return JSON.parse(await fs.readFile(filename, "utf8"));
@@ -188,6 +202,23 @@ function normalizeHome(value) {
   return { kind: "local" };
 }
 
+function normalizeConversationMetadata(value) {
+  const provider = String(value?.provider || "").toLowerCase();
+  const id = String(value?.id || "").trim();
+  if (!/^[a-z0-9-]{8,80}$/i.test(id) || !["chatgpt", "gemini"].includes(provider)) {
+    return null;
+  }
+  return {
+    id,
+    provider,
+    shareIds: [...new Set((Array.isArray(value.shareIds) ? value.shareIds : [])
+      .map(item => String(item || "").trim())
+      .filter(Boolean))].slice(-50),
+    latestShareUrl: String(value.latestShareUrl || ""),
+    latestSourceRevision: String(value.latestSourceRevision || ""),
+  };
+}
+
 function normalizeNote(value) {
   if (!value || typeof value !== "object") {
     return null;
@@ -222,6 +253,7 @@ function normalizeNote(value) {
     images,
     readOnly: Boolean(value.readOnly),
     unsupportedReason: String(value.unsupportedReason || ""),
+    conversation: normalizeConversationMetadata(value.conversation),
     home: normalizeHome(value.home),
   };
 }
@@ -254,6 +286,9 @@ function noteSummary(note) {
     readOnly: note.readOnly,
     unsupportedReason: note.unsupportedReason,
     imageCount: note.images.length,
+    conversation: note.conversation
+      ? { id: note.conversation.id, provider: note.conversation.provider }
+      : null,
     home: note.home,
   };
 }
@@ -480,6 +515,7 @@ async function createNote(input) {
       title: cleanTitle(input?.title),
       bodyHtml: String(input?.bodyHtml || "<div><br></div>"),
       images: Array.isArray(input?.images) ? input.images : [],
+      conversation: input?.conversation,
       updatedAt: Date.now(),
       home: { kind: "local" },
     });
@@ -489,6 +525,7 @@ async function createNote(input) {
       title: cleanTitle(input?.title),
       bodyHtml: String(input?.bodyHtml || "<div><br></div>"),
       images: Array.isArray(input?.images) ? input.images : [],
+      conversation: input?.conversation,
     });
   }
   const notes = [...await readNotes()];
@@ -497,7 +534,7 @@ async function createNote(input) {
   return note;
 }
 
-async function saveNote(input) {
+async function saveNote(input, options = {}) {
   const notes = [...await readNotes()];
   const index = notes.findIndex(item => item.id === input?.id);
   if (index === -1) {
@@ -509,6 +546,9 @@ async function saveNote(input) {
     title: cleanTitle(input.title),
     bodyHtml: String(input.bodyHtml || ""),
     images: Array.isArray(input.images) ? input.images : [],
+    conversation: options.conversation === undefined
+      ? original.conversation
+      : options.conversation,
     searchText: "",
     updatedAt: Date.now(),
   });
@@ -522,7 +562,145 @@ async function saveNote(input) {
   }
   notes[index] = saved;
   await writeNotes(notes);
+  if (saved.conversation && !options.skipConversationHistory) {
+    try {
+      const state = await readConversationState(conversationHistoryRoot(), saved.conversation.id);
+      if (state?.snapshot) {
+        await commitConversationVersion(conversationHistoryRoot(), {
+          conversationId: saved.conversation.id,
+          provider: saved.conversation.provider,
+          shareIds: saved.conversation.shareIds,
+          snapshot: state.snapshot,
+          note: saved,
+          message: `Edit ${saved.conversation.provider} conversation: ${saved.title}`,
+        });
+      }
+    } catch (error) {
+      warning = [warning, `The note was saved, but its local Git history could not be updated: ${error.message}`]
+        .filter(Boolean).join("\n");
+    }
+  }
   return { note: saved, warning };
+}
+
+async function conversationCandidates(remote) {
+  const candidates = [];
+  for (const note of await readNotes()) {
+    if (note.conversation?.provider !== remote.provider) {
+      continue;
+    }
+    const exactShare = note.conversation.shareIds.includes(remote.shareId);
+    const state = await readConversationState(conversationHistoryRoot(), note.conversation.id);
+    if (!state?.snapshot && !exactShare) {
+      continue;
+    }
+    const similarity = state?.snapshot
+      ? conversationSimilarity(state.snapshot, remote)
+      : { score: 0, commonTurns: 0, exactPrefix: false, leftTurns: 0, rightTurns: remote.turns.length };
+    candidates.push({ note, state, exactShare, similarity });
+  }
+  return candidates.sort((left, right) => (
+    Number(right.exactShare) - Number(left.exactShare)
+      || right.similarity.score - left.similarity.score
+      || right.similarity.commonTurns - left.similarity.commonTurns
+  ));
+}
+
+async function recordImportedConversation(note, remote, message) {
+  try {
+    return await commitConversationVersion(conversationHistoryRoot(), {
+      conversationId: note.conversation.id,
+      provider: note.conversation.provider,
+      shareIds: note.conversation.shareIds,
+      snapshot: remote,
+      note,
+      message,
+    });
+  } catch (error) {
+    return { oid: "", root: conversationHistoryRoot(), warning: error.message || String(error) };
+  }
+}
+
+async function importSharedConversation(event, input) {
+  const provider = String(input?.provider || "").toLowerCase();
+  const remote = await fetchSharedConversation(BrowserWindow, input?.url, provider);
+  const candidates = await conversationCandidates(remote);
+  let candidate = candidates.find(item => item.exactShare) || null;
+
+  if (!candidate) {
+    const likely = candidates.find(item => isLikelyContinuation(item.similarity));
+    if (likely) {
+      const providerLabel = provider === "gemini" ? "Gemini" : "ChatGPT";
+      const parent = BrowserWindow.fromWebContents(event.sender);
+      const choice = await dialog.showMessageBox(parent, {
+        type: "question",
+        title: `${providerLabel} conversation found`,
+        message: `This link looks like a continuation of “${likely.note.title}”.`,
+        detail: "Update the existing note, or create a separate note? The note title is not imported or changed.",
+        buttons: ["Update existing note", "Create separate note", "Cancel"],
+        defaultId: 0,
+        cancelId: 2,
+        noLink: true,
+      });
+      if (choice.response === 2) {
+        return { status: "canceled" };
+      }
+      if (choice.response === 0) {
+        candidate = likely;
+      }
+    }
+  }
+
+  if (candidate && !candidate.state?.snapshot) {
+    return {
+      status: "conflict",
+      note: noteSummary(candidate.note),
+      message: "This share link already belongs to the note, but its local base version is unavailable. The note was not changed.",
+    };
+  }
+
+  if (!candidate) {
+    const metadata = conversationMetadata(null, remote);
+    const note = await createNote({
+      accountId: String(input?.accountId || "local"),
+      title: conversationNoteTitle(remote),
+      bodyHtml: renderConversation(remote),
+      conversation: metadata,
+    });
+    const history = await recordImportedConversation(
+      note,
+      remote,
+      `Import ${provider} conversation: ${note.title}`,
+    );
+    return { status: "created", note: noteSummary(note), history };
+  }
+
+  const merged = mergeConversation(candidate.state.snapshot, candidate.note, remote);
+  if (merged.conflict) {
+    return {
+      status: "conflict",
+      note: noteSummary(candidate.note),
+      message: "The shared conversation no longer continues the stored source cleanly. The local note was not changed.",
+    };
+  }
+  const metadata = conversationMetadata(candidate.note.conversation, remote);
+  const saved = await saveNote({
+    ...candidate.note,
+    title: merged.title,
+    bodyHtml: merged.bodyHtml,
+  }, { conversation: metadata, skipConversationHistory: true });
+  const history = await recordImportedConversation(
+    saved.note,
+    remote,
+    `Update ${provider} conversation: ${saved.note.title}`,
+  );
+  return {
+    status: "updated",
+    note: noteSummary(saved.note),
+    appendedTurns: merged.appendedTurns,
+    warning: saved.warning,
+    history,
+  };
 }
 
 async function deleteNote(id) {
@@ -617,6 +795,9 @@ function registerHandlers() {
   handle("notes:sync", () => serializeOperation(synchronizeAll));
   handle("notes:import", importNote);
   handle("notes:export", exportNote);
+  handle("conversations:import", (event, input) => (
+    serializeOperation(() => importSharedConversation(event, input))
+  ));
   handle("clipboard:read-text", () => clipboard.readText());
   handle("settings:list", listSettings);
   handle("settings:save", (_event, input) => serializeOperation(() => saveSettings(input)));

@@ -7,7 +7,7 @@
   "license": "GPL-3.0-only",
   "main": "main.js",
   "scripts": {
-    "check": "node --check apple-note.js && node --check imap-service.js && node --check note-parser-worker.js && node --check update-utils.js && node --check secret-settings.js && node --check main.js && node --check preload.js && node --check search-utils.js && node --check paste-utils.js && node --check tab-utils.js && node --check renderer.js",
+    "check": "node --check apple-note.js && node --check imap-service.js && node --check note-parser-worker.js && node --check update-utils.js && node --check secret-settings.js && node --check conversation-import.js && node --check conversation-history.js && node --check shared-conversation-fetcher.js && node --check main.js && node --check preload.js && node --check search-utils.js && node --check paste-utils.js && node --check tab-utils.js && node --check renderer.js",
     "test": "node --test test/*.test.js",
     "dist:dir": "electron-builder --dir",
     "dist:win": "electron-builder --win nsis --publish never",
@@ -34,6 +34,9 @@
       "note-parser-worker.js",
       "update-utils.js",
       "secret-settings.js",
+      "conversation-import.js",
+      "conversation-history.js",
+      "shared-conversation-fetcher.js",
       "preload.js",
       "search-utils.js",
       "paste-utils.js",
@@ -68,6 +71,7 @@
   "dependencies": {
     "electron-updater": "6.8.9",
     "imapflow": "1.7.6",
+    "isomorphic-git": "1.41.9",
     "mailparser": "3.9.16",
     "nodemailer": "9.0.5"
   }

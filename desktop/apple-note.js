@@ -34,6 +34,45 @@ function headerText(mail, name) {
   return String(value);
 }
 
+function cleanHeaderValue(value, maximum = 1000) {
+  return String(value || "").replace(/[\r\n]+/g, " ").trim().slice(0, maximum);
+}
+
+function conversationHeaders(value) {
+  if (!value || !["chatgpt", "gemini"].includes(value.provider) || !value.id) {
+    return {};
+  }
+  return {
+    "X-iOS-IMAP-Notes-Conversation-ID": cleanHeaderValue(value.id, 100),
+    "X-iOS-IMAP-Notes-Provider": value.provider,
+    "X-iOS-IMAP-Notes-Share-IDs": (Array.isArray(value.shareIds) ? value.shareIds : [])
+      .map(item => cleanHeaderValue(item, 100))
+      .filter(Boolean)
+      .slice(-50)
+      .join(","),
+    "X-iOS-IMAP-Notes-Source-Revision": cleanHeaderValue(value.latestSourceRevision, 100),
+  };
+}
+
+function parsedConversation(mail) {
+  const id = headerText(mail, "x-ios-imap-notes-conversation-id").trim();
+  const provider = headerText(mail, "x-ios-imap-notes-provider").trim().toLowerCase();
+  if (!id || !["chatgpt", "gemini"].includes(provider)) {
+    return null;
+  }
+  return {
+    id,
+    provider,
+    shareIds: headerText(mail, "x-ios-imap-notes-share-ids")
+      .split(",")
+      .map(item => item.trim())
+      .filter(Boolean)
+      .slice(-50),
+    latestShareUrl: "",
+    latestSourceRevision: headerText(mail, "x-ios-imap-notes-source-revision").trim(),
+  };
+}
+
 function extractBody(html) {
   const source = String(html || "").slice(0, MAX_NOTE_LENGTH);
   const match = source.match(/<body\b[^>]*>([\s\S]*?)<\/body\s*>/i);
@@ -206,6 +245,7 @@ async function parseAppleNoteSource(source, metadata) {
     unsupportedReason: readOnly
       ? "This note contains a non-image, malformed or oversized attachment and is read-only to prevent data loss."
       : "",
+    conversation: parsedConversation(mail),
     home: {
       kind: "imap",
       accountId: metadata.accountId,
@@ -251,6 +291,7 @@ async function buildAppleNoteSource(input) {
       "X-Mail-Created-Date": input.createdDate || now.toUTCString(),
       "X-Uniform-Type-Identifier": APPLE_NOTE_UTI,
       "X-Universally-Unique-Identifier": uuid,
+      ...conversationHeaders(input.conversation),
     },
     newline: "windows",
   });

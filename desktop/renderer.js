@@ -43,6 +43,11 @@ const settingsState = document.getElementById("settings-state");
 const accountList = document.getElementById("account-list");
 const openAiApiKey = document.getElementById("openai-api-key");
 const geminiApiKey = document.getElementById("gemini-api-key");
+const chatGptShareLink = document.getElementById("chatgpt-share-link");
+const geminiShareLink = document.getElementById("gemini-share-link");
+const importChatGptLinkButton = document.getElementById("import-chatgpt-link");
+const importGeminiLinkButton = document.getElementById("import-gemini-link");
+const conversationImportHome = document.getElementById("conversation-import-home");
 const appVersion = document.getElementById("app-version");
 const updateStateText = document.getElementById("update-state");
 const checkUpdatesButton = document.getElementById("check-updates");
@@ -767,20 +772,27 @@ async function reconcileCleanTabs() {
 
 function renderAccountChoices() {
   const currentFilter = accountFilter.value;
+  const currentImportHome = conversationImportHome.value;
   accountFilter.replaceChildren(
     new Option("All accounts", "all"),
     new Option("Local notes", "local"),
   );
   newNoteHome.replaceChildren(new Option("Local notes", "local"));
+  conversationImportHome.replaceChildren(new Option("Local notes", "local"));
   for (const account of accounts) {
     accountFilter.add(new Option(account.name, account.id));
     if (account.enabled) {
       newNoteHome.add(new Option(`${account.name} — ${account.mailbox}`, account.id));
+      conversationImportHome.add(new Option(`${account.name} — ${account.mailbox}`, account.id));
     }
   }
   accountFilter.value = [...accountFilter.options].some(option => option.value === currentFilter)
     ? currentFilter
     : "all";
+  conversationImportHome.value = [...conversationImportHome.options]
+    .some(option => option.value === currentImportHome)
+    ? currentImportHome
+    : "local";
 }
 
 async function loadSettings() {
@@ -1033,12 +1045,81 @@ async function openSettings() {
   settingsDialog.showModal();
 }
 
+function setSettingsState(message, state = "error") {
+  settingsState.textContent = message;
+  settingsState.dataset.state = state;
+}
+
+async function importSharedConversation(provider) {
+  if (!captureActiveTab()) {
+    return;
+  }
+  if (openTabs.some(tab => tab.dirty)) {
+    setSettingsState("Save all open note changes before importing a conversation.");
+    return;
+  }
+  const input = provider === "gemini" ? geminiShareLink : chatGptShareLink;
+  if (!input.value.trim()) {
+    setSettingsState(`Enter a public ${provider === "gemini" ? "Gemini" : "ChatGPT"} conversation link.`);
+    input.focus();
+    return;
+  }
+  if (!input.reportValidity()) {
+    return;
+  }
+  const providerLabel = provider === "gemini" ? "Gemini" : "ChatGPT";
+  importChatGptLinkButton.disabled = true;
+  importGeminiLinkButton.disabled = true;
+  setSettingsState(`Loading the public ${providerLabel} conversation…`, "working");
+  try {
+    const result = await window.notesApi.conversations.import({
+      provider,
+      url: input.value,
+      accountId: conversationImportHome.value,
+    });
+    if (result.status === "canceled") {
+      setSettingsState("Import canceled.", "working");
+      return;
+    }
+    if (result.status === "conflict") {
+      setSettingsState(`${result.message} Note: “${result.note.title}”.`);
+      return;
+    }
+    await refreshNotes();
+    await reconcileCleanTabs();
+    const imported = await window.notesApi.get(result.note.id);
+    if (imported) {
+      openNoteInTab(imported);
+    }
+    input.value = "";
+    const action = result.status === "created" ? "created" : "updated";
+    const additions = result.status === "updated"
+      ? ` ${result.appendedTurns} new prompt/answer block${result.appendedTurns === 1 ? "" : "s"} appended.`
+      : "";
+    const history = result.history?.warning
+      ? ` The note is safe, but Git history failed: ${result.history.warning}`
+      : result.history?.oid
+        ? ` Git ${result.history.oid.slice(0, 8)} in ${result.history.root}.`
+        : "";
+    const saveWarning = result.warning ? ` ${result.warning}` : "";
+    setSettingsState(
+      `${providerLabel} note ${action}.${additions}${saveWarning}${history}`,
+      result.history?.warning || result.warning ? "error" : "success",
+    );
+  } catch (error) {
+    setSettingsState(errorText(error));
+  } finally {
+    importChatGptLinkButton.disabled = false;
+    importGeminiLinkButton.disabled = false;
+  }
+}
+
 async function saveSettings() {
   const form = document.getElementById("settings-form");
   if (!form.reportValidity()) {
     return;
   }
-  settingsState.textContent = "Saving settings and creating missing Notes folders…";
+  setSettingsState("Saving settings and creating missing Notes folders…", "working");
   try {
     const accountValues = [...accountList.querySelectorAll(".account-card")].map(collectAccount);
     await window.notesApi.settings.save({
@@ -1052,7 +1133,7 @@ async function saveSettings() {
     settingsDialog.close("save");
     await syncNotes();
   } catch (error) {
-    settingsState.textContent = errorText(error);
+    setSettingsState(errorText(error));
   }
 }
 
@@ -1101,6 +1182,8 @@ async function init() {
   updateAppButton.addEventListener("click", useUpdateButton);
   closeAppButton.addEventListener("click", closeApplication);
   document.getElementById("add-account").addEventListener("click", () => addAccountCard());
+  importChatGptLinkButton.addEventListener("click", () => importSharedConversation("chatgpt"));
+  importGeminiLinkButton.addEventListener("click", () => importSharedConversation("gemini"));
   saveButton.addEventListener("click", saveNote);
   deleteButton.addEventListener("click", deleteNote);
   exportButton.addEventListener("click", exportNote);

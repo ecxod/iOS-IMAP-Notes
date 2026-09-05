@@ -468,7 +468,8 @@ dialog form {
 #new-note-dialog select,
 .account-card input,
 .account-card select,
-.api-key-settings input {
+.api-key-settings input,
+.api-key-settings select {
   min-width: 0;
   padding: 0.4rem 0.5rem;
   border: 1px solid color-mix(in srgb, CanvasText 28%, transparent);
@@ -535,6 +536,23 @@ dialog form {
   margin-top: 0.7rem;
 }
 
+.ai-provider-card {
+  display: grid;
+  align-content: start;
+  gap: 0.6rem;
+  padding: 0.7rem;
+  border: 1px solid color-mix(in srgb, CanvasText 16%, transparent);
+  border-radius: 0.4rem;
+}
+
+.ai-provider-card button {
+  justify-self: start;
+}
+
+.conversation-import-home-label {
+  margin-top: 0.7rem;
+}
+
 .account-card {
   margin-bottom: 0.75rem;
   padding: 0.8rem;
@@ -598,6 +616,14 @@ dialog form {
   margin: 0;
   padding: 0 1rem 0.6rem;
   color: #b00020;
+}
+
+#settings-state[data-state="success"] {
+  color: #287c3e;
+}
+
+#settings-state[data-state="working"] {
+  color: CanvasText;
 }
 
 ::highlight(note-search-results) {
