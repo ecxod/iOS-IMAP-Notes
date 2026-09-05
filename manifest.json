@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "__MSG_extName__",
   "description": "__MSG_extDescription__",
-  "version": "1.4.5",
+  "version": "1.4.6",
   "author": "Christian Eichert",
   "developer": {
     "name": "Christian Eichert, Jesse Lujack, John Bieling"
