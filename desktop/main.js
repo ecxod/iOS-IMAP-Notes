@@ -1,6 +1,7 @@
 const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, safeStorage } = require("electron");
 const Sentry = require("@sentry/electron/main");
 const { autoUpdater } = require("electron-updater");
+const fsSync = require("node:fs");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
@@ -472,24 +473,28 @@ async function readSettingsRaw() {
   };
 }
 
-async function configureSentry(rawDsn) {
-  const dsn = normalizeSentryDsn(rawDsn);
-  if (dsn === activeSentryDsn) {
-    return;
-  }
-  if (activeSentryDsn) {
-    await Sentry.close(2_000);
-  }
-  activeSentryDsn = dsn;
-  if (dsn) {
+function initializeSentryBeforeReady() {
+  try {
+    const settings = JSON.parse(fsSync.readFileSync(settingsFile(), "utf8"));
+    const dsn = normalizeSentryDsn(settings?.diagnostics?.sentryDsn);
+    if (!dsn) {
+      return;
+    }
     Sentry.init({
       dsn,
       release: `ios-imap-notes-offline@${app.getVersion()}`,
       environment: app.isPackaged ? "production" : "development",
       sendDefaultPii: false,
     });
+    activeSentryDsn = dsn;
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      console.error("Could not initialize Sentry diagnostics:", error);
+    }
   }
 }
+
+initializeSentryBeforeReady();
 
 function publicAccount(account) {
   return {
@@ -638,7 +643,10 @@ async function listSettings() {
   return {
     accounts: settings.accounts.map(publicAccount),
     llm: publicApiKeySettings(settings),
-    diagnostics: { sentryDsn: settings.diagnostics.sentryDsn },
+    diagnostics: {
+      sentryDsn: settings.diagnostics.sentryDsn,
+      restartRequired: settings.diagnostics.sentryDsn !== activeSentryDsn,
+    },
     credentialProtection: credentialProtection(),
   };
 }
@@ -690,7 +698,6 @@ async function saveSettings(input) {
     sentryDsn: normalizeSentryDsn(input?.diagnostics?.sentryDsn),
   };
   await writeJson(settingsFile(), { version: SETTINGS_VERSION, accounts, llm, diagnostics });
-  await configureSentry(diagnostics.sentryDsn);
   return listSettings();
 }
 
@@ -1126,7 +1133,6 @@ async function createWindow() {
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
-  await configureSentry((await readSettingsRaw()).diagnostics.sentryDsn);
   configureUpdater();
   registerHandlers();
   await createWindow();

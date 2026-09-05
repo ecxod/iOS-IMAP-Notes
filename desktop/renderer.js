@@ -1369,7 +1369,7 @@ async function saveSettings() {
   setSettingsState("Saving settings and creating missing Notes folders…", "working");
   try {
     const accountValues = [...accountList.querySelectorAll(".account-card")].map(collectAccount);
-    await window.notesApi.settings.save({
+    const savedSettings = await window.notesApi.settings.save({
       accounts: accountValues,
       llm: {
         openaiApiKey: openAiApiKey.value,
@@ -1382,6 +1382,9 @@ async function saveSettings() {
     await loadSettings();
     settingsDialog.close("save");
     await syncNotes();
+    if (savedSettings.diagnostics?.restartRequired) {
+      syncState.textContent = "Settings saved. Restart the app to apply the Sentry DSN.";
+    }
   } catch (error) {
     const message = errorText(error);
     if (message.includes("API key validation failed")) {

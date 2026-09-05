@@ -18,14 +18,22 @@ test("settings offer masked OpenAI and Gemini API key inputs", async () => {
 
 test("settings offer Electron diagnostics and browser developer tools", async () => {
   const html = await readFile(path.join(__dirname, "..", "index.html"), "utf8");
+  const main = await readFile(path.join(__dirname, "..", "main.js"), "utf8");
   const renderer = await readFile(path.join(__dirname, "..", "renderer.js"), "utf8");
   const preload = await readFile(path.join(__dirname, "..", "preload.js"), "utf8");
   assert.match(html, /id="sentry-dsn"[^>]*type="url"/);
   assert.match(html, /id="open-dev-tools"/);
   assert.match(renderer, /diagnostics:\s*{\s*sentryDsn: sentryDsn\.value/);
   assert.match(renderer, /notesApi\.diagnostics\.openDevTools/);
+  assert.match(renderer, /Restart the app to apply the Sentry DSN/);
   assert.match(preload, /diagnostics:open-dev-tools/);
   assert.match(preload, /diagnostics:renderer-error/);
+  assert.ok(
+    main.indexOf("initializeSentryBeforeReady();") < main.indexOf("app.whenReady()"),
+    "Sentry must be initialized before Electron emits ready",
+  );
+  const readyHandler = main.slice(main.indexOf("app.whenReady()"));
+  assert.doesNotMatch(readyHandler, /Sentry\.init\(/);
 });
 
 test("renderer submits API keys without receiving stored plaintext", async () => {
