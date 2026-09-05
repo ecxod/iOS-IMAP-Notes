@@ -12,6 +12,8 @@ let pendingCreateInput = null;
 let loadedImageMetadata = [];
 let availableAiProviders = [];
 let editorInsertionRange = null;
+let markedNoteIds = new Set();
+let lastMarkedNoteId = null;
 const managedImageUrls = new Set();
 let selectionRequest = 0;
 let searchHighlightTimer = null;
@@ -829,12 +831,48 @@ function noteTab(noteId) {
   return openTabs.find(tab => tab.noteId === noteId) || null;
 }
 
+function markNoteFromClick(event, note) {
+  const visible = visibleNotes();
+  if (event.shiftKey && lastMarkedNoteId) {
+    const anchorIndex = visible.findIndex(item => item.id === lastMarkedNoteId);
+    const noteIndex = visible.findIndex(item => item.id === note.id);
+    if (anchorIndex >= 0 && noteIndex >= 0) {
+      const [start, end] = [anchorIndex, noteIndex].sort((left, right) => left - right);
+      for (const item of visible.slice(start, end + 1)) {
+        markedNoteIds.add(item.id);
+      }
+      renderList();
+      return;
+    }
+  }
+  if (event.ctrlKey || event.metaKey) {
+    if (markedNoteIds.has(note.id)) {
+      markedNoteIds.delete(note.id);
+    } else {
+      markedNoteIds.add(note.id);
+    }
+    lastMarkedNoteId = note.id;
+    renderList();
+    return;
+  }
+  markedNoteIds = new Set([note.id]);
+  lastMarkedNoteId = note.id;
+  renderList();
+  selectNote(note.id);
+}
+
 function showNoteContextMenu(event, note) {
   event.preventDefault();
+  if (!markedNoteIds.has(note.id)) {
+    markedNoteIds = new Set([note.id]);
+    lastMarkedNoteId = note.id;
+    renderList();
+  }
   const tab = noteTab(note.id);
   window.notesApi.showContextMenu({
     noteId: note.id,
     canSave: Boolean(tab?.dirty) && !note.readOnly,
+    selectedNoteIds: [...markedNoteIds],
   }).catch(error => {
     syncState.textContent = errorText(error);
   });
@@ -848,6 +886,8 @@ function renderList() {
     button.type = "button";
     button.dataset.id = note.id;
     button.setAttribute("aria-current", String(note.id === selected?.id));
+    button.setAttribute("aria-pressed", String(markedNoteIds.has(note.id)));
+    button.classList.toggle("note-marked", markedNoteIds.has(note.id));
 
     const noteTitle = document.createElement("span");
     noteTitle.className = "note-list-title";
@@ -864,7 +904,7 @@ function renderList() {
     details.append(home, date);
 
     button.append(noteTitle, details);
-    button.addEventListener("click", () => selectNote(note.id));
+    button.addEventListener("click", event => markNoteFromClick(event, note));
     button.addEventListener("contextmenu", event => showNoteContextMenu(event, note));
     item.append(button);
     list.append(item);
@@ -994,6 +1034,8 @@ async function selectNote(id) {
 
 async function refreshNotes() {
   notes = (await window.notesApi.list()).sort((a, b) => b.updatedAt - a.updatedAt);
+  const noteIds = new Set(notes.map(note => note.id));
+  markedNoteIds = new Set([...markedNoteIds].filter(id => noteIds.has(id)));
   renderList();
 }
 
@@ -1224,11 +1266,93 @@ async function transferNoteFromContext({ action, noteId, targetAccountId }) {
   }
 }
 
+async function mergeNotesFromContext({ noteId, selectedNoteIds }) {
+  const noteIds = [...new Set((Array.isArray(selectedNoteIds) ? selectedNoteIds : [])
+    .map(value => String(value || ""))
+    .filter(Boolean))];
+  if (noteIds.length < 2 || !noteIds.includes(noteId)) {
+    return;
+  }
+  if (selected?.id && noteIds.includes(selected.id) && !captureActiveTab()) {
+    throw new Error("The open note could not be prepared for merging.");
+  }
+  const drafts = await Promise.all(noteIds.map(async id => noteTab(id)?.note || window.notesApi.get(id)));
+  if (drafts.some(note => !note)) {
+    throw new Error("One of the selected notes no longer exists.");
+  }
+  const target = drafts.find(note => note.id === noteId);
+  if (!window.confirm(
+    `Merge ${noteIds.length} selected notes into “${target.title}”?\n\n`
+    + "The other notes will be deleted only after the consolidated note has been saved successfully.",
+  )) {
+    return;
+  }
+
+  const activeNoteIsSelected = Boolean(selected?.id && noteIds.includes(selected.id));
+  if (activeNoteIsSelected) {
+    title.disabled = true;
+    editor.readOnly(true);
+  }
+  let completed = false;
+  try {
+    syncState.textContent = `Merging ${noteIds.length} notes into “${target.title}”…`;
+    const result = await window.notesApi.merge({ targetId: noteId, noteIds, drafts });
+    const removedIds = new Set(result.removedIds || []);
+    openTabs = openTabs.filter(tab => !removedIds.has(tab.noteId));
+    let targetTab = noteTab(noteId);
+    if (!targetTab) {
+      targetTab = {
+        id: crypto.randomUUID(),
+        noteId: result.note.id,
+        note: result.note,
+        scope: NoteTabs.scopeForNote(result.note),
+        dirty: false,
+      };
+      openTabs.push(targetTab);
+    } else {
+      targetTab.noteId = result.note.id;
+      targetTab.note = result.note;
+      targetTab.scope = NoteTabs.scopeForNote(result.note);
+      targetTab.dirty = false;
+    }
+    activeTabId = targetTab.id;
+    selected = result.note;
+    dirty = false;
+    markedNoteIds = new Set([result.note.id]);
+    lastMarkedNoteId = result.note.id;
+    await refreshNotes();
+    displayActiveTab();
+    const duplicateCopy = result.skippedDuplicates
+      ? ` ${result.skippedDuplicates} exact duplicate${result.skippedDuplicates === 1 ? " was" : "s were"} omitted.`
+      : "";
+    syncState.textContent = `Merged ${result.includedVersions} distinct version${result.includedVersions === 1 ? "" : "s"} into “${result.note.title}”.${duplicateCopy}`;
+    if (result.warning) {
+      window.alert(result.warning);
+    }
+    completed = true;
+  } finally {
+    if (!completed && activeNoteIsSelected) {
+      displayActiveTab();
+    }
+  }
+}
+
 async function handleNoteContextAction(input) {
   const action = String(input?.action || "");
   const noteId = String(input?.noteId || "");
   if (action === "save") {
     await saveNoteFromContext(noteId);
+    return;
+  }
+  if (action === "merge") {
+    try {
+      await mergeNotesFromContext({
+        noteId,
+        selectedNoteIds: input?.selectedNoteIds,
+      });
+    } catch (error) {
+      syncState.textContent = errorText(error);
+    }
     return;
   }
   if (!["copy", "move"].includes(action)) {

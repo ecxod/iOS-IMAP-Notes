@@ -78,6 +78,28 @@ test("note context menu saves, copies, and safely moves to another server", asyn
   assert.match(renderer, /action === "move" && result\.sourceRemoved/);
 });
 
+test("Merge appears only for multiple marked notes and consolidates into the context target", async () => {
+  const [html, main, preload, renderer, styles, packageJson] = await Promise.all([
+    readFile(path.join(desktopRoot, "index.html"), "utf8"),
+    readFile(path.join(desktopRoot, "main.js"), "utf8"),
+    readFile(path.join(desktopRoot, "preload.js"), "utf8"),
+    readFile(path.join(desktopRoot, "renderer.js"), "utf8"),
+    readFile(path.join(desktopRoot, "styles.css"), "utf8"),
+    readFile(path.join(desktopRoot, "package.json"), "utf8"),
+  ]);
+  assert.match(html, /Ctrl-click or Shift-click to select multiple notes/);
+  assert.match(renderer, /event\.ctrlKey \|\| event\.metaKey/);
+  assert.match(renderer, /event\.shiftKey && lastMarkedNoteId/);
+  assert.match(renderer, /selectedNoteIds: \[\.\.\.markedNoteIds\]/);
+  assert.match(styles, /#note-list button\.note-marked/);
+  assert.match(main, /if \(selectedNotes\.length > 1\)[\s\S]*label: "Merge"/);
+  assert.match(main, /handle\("notes:merge"/);
+  assert.match(preload, /merge: input => ipcRenderer\.invoke\("notes:merge"/);
+  assert.match(renderer, /window\.notesApi\.merge\(\{ targetId: noteId, noteIds, drafts \}\)/);
+  assert.match(renderer, /The other notes will be deleted only after the consolidated note has been saved successfully/);
+  assert.match(packageJson, /"note-merge\.js"/);
+});
+
 test("editor context menu offers spelling suggestions and a persistent language choice", async () => {
   const main = await readFile(path.join(desktopRoot, "main.js"), "utf8");
   assert.match(main, /params\.dictionarySuggestions[\s\S]*replaceMisspelling\(suggestion\)/);

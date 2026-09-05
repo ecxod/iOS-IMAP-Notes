@@ -13,6 +13,7 @@ const {
   destinationAccounts,
   transferNoteSafely,
 } = require("./note-transfer");
+const { mergeNoteVersions } = require("./note-merge");
 const {
   conversationMetadata,
   conversationNoteTitle,
@@ -328,15 +329,23 @@ async function showNoteContextMenu(event, input) {
   }
   const settings = await readSettingsRaw();
   const targets = destinationAccounts(settings.accounts, note);
+  const selectedNoteIds = [...new Set((Array.isArray(input?.selectedNoteIds)
+    ? input.selectedNoteIds
+    : [noteId]).map(value => String(value || "")).filter(Boolean))];
+  const selectedNotes = (await Promise.all(selectedNoteIds.map(id => getNote(id)))).filter(Boolean);
+  const canMerge = selectedNoteIds.includes(noteId)
+    && selectedNotes.length === selectedNoteIds.length
+    && selectedNotes.length > 1
+    && selectedNotes.every(selectedNote => !selectedNote.readOnly);
   const webContents = event.sender;
-  const sendAction = (action, targetAccountId = "") => {
-    webContents.send("notes:context-action", { action, noteId, targetAccountId });
+  const sendAction = (action, extra = {}) => {
+    webContents.send("notes:context-action", { action, noteId, ...extra });
   };
   const destinationMenu = action => (
     targets.length
       ? targets.map(account => ({
         label: `${account.name || account.user} · ${account.mailbox}`,
-        click: () => sendAction(action, account.id),
+        click: () => sendAction(action, { targetAccountId: account.id }),
       }))
       : [{ label: "No other enabled server configured", enabled: false }]
   );
@@ -359,6 +368,16 @@ async function showNoteContextMenu(event, input) {
       submenu: destinationMenu("move"),
     },
   ];
+  if (selectedNotes.length > 1) {
+    template.push(
+      { type: "separator" },
+      {
+        label: "Merge",
+        enabled: canMerge,
+        click: () => sendAction("merge", { selectedNoteIds }),
+      },
+    );
+  }
   Menu.buildFromTemplate(template).popup({
     window: BrowserWindow.fromWebContents(webContents),
   });
@@ -944,6 +963,74 @@ async function transferNote(input) {
   });
 }
 
+async function mergeNotes(input) {
+  const targetId = String(input?.targetId || "");
+  const noteIds = [...new Set((Array.isArray(input?.noteIds) ? input.noteIds : [])
+    .map(value => String(value || ""))
+    .filter(Boolean))];
+  if (noteIds.length < 2 || !noteIds.includes(targetId)) {
+    throw new Error("Select at least two notes, including the merge target.");
+  }
+  if (noteIds.length > 50) {
+    throw new Error("Merge at most 50 notes at once.");
+  }
+  const storedNotes = [...await readNotes()];
+  const storedById = new Map(storedNotes.map(note => [note.id, note]));
+  const draftsById = new Map((Array.isArray(input?.drafts) ? input.drafts : [])
+    .map(draft => [String(draft?.id || ""), draft]));
+  const versions = noteIds.map(id => {
+    const stored = storedById.get(id);
+    if (!stored) {
+      throw new Error("One of the selected notes no longer exists.");
+    }
+    if (stored.readOnly) {
+      throw new Error(`“${stored.title}” is read-only and cannot be merged safely.`);
+    }
+    const draft = draftsById.get(id);
+    return normalizeNote({
+      ...stored,
+      title: draft?.title ?? stored.title,
+      bodyHtml: draft?.bodyHtml ?? stored.bodyHtml,
+      images: draft?.images ?? stored.images,
+      id: stored.id,
+      home: stored.home,
+      conversation: stored.conversation,
+      updatedAt: stored.updatedAt,
+    });
+  });
+  const merged = mergeNoteVersions(versions, targetId, randomUUID);
+  if (merged.bodyHtml.length > MAX_NOTE_LENGTH) {
+    throw new Error("The merged note would be too large. Fewer source notes must be selected.");
+  }
+  const imageBytes = merged.images.reduce(
+    (total, image) => total + Math.floor(String(image.dataBase64 || "").length * 3 / 4),
+    0,
+  );
+  if (imageBytes > MAX_IMAGE_BYTES) {
+    throw new Error("The merged note would contain more than 6 MB of images.");
+  }
+
+  const target = versions.find(note => note.id === targetId);
+  const saved = await saveNote({ ...target, ...merged });
+  const warnings = saved.warning ? [saved.warning] : [];
+  const removedIds = [];
+  for (const sourceId of noteIds.filter(id => id !== targetId)) {
+    try {
+      await deleteNote(sourceId);
+      removedIds.push(sourceId);
+    } catch (error) {
+      warnings.push(`The merged content is safe, but “${storedById.get(sourceId).title}” could not be removed: ${error.message}`);
+    }
+  }
+  return {
+    note: saved.note,
+    removedIds,
+    includedVersions: merged.includedVersions,
+    skippedDuplicates: merged.skippedDuplicates,
+    warning: warnings.join("\n"),
+  };
+}
+
 async function conversationCandidates(remote) {
   const candidates = [];
   for (const note of await readNotes()) {
@@ -1160,6 +1247,7 @@ function registerHandlers() {
   handle("notes:create", (_event, input) => serializeOperation(() => createNote(input)));
   handle("notes:save", (_event, input) => serializeOperation(() => saveNote(input)));
   handle("notes:transfer", (_event, input) => serializeOperation(() => transferNote(input)));
+  handle("notes:merge", (_event, input) => serializeOperation(() => mergeNotes(input)));
   handle("notes:show-context-menu", showNoteContextMenu);
   handle("notes:delete", (_event, id) => serializeOperation(() => deleteNote(id)));
   handle("notes:sync", () => serializeOperation(synchronizeAll));

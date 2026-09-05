@@ -224,6 +224,12 @@ button:disabled {
   background: color-mix(in srgb, AccentColor 18%, Canvas);
 }
 
+#note-list button.note-marked {
+  outline: 2px solid color-mix(in srgb, AccentColor 75%, transparent);
+  outline-offset: -2px;
+  background: color-mix(in srgb, AccentColor 18%, Canvas);
+}
+
 .note-list-title {
   display: block;
   overflow: hidden;

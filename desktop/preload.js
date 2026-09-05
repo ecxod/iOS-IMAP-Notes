@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("notesApi", Object.freeze({
   create: input => ipcRenderer.invoke("notes:create", input),
   save: note => ipcRenderer.invoke("notes:save", note),
   transfer: input => ipcRenderer.invoke("notes:transfer", input),
+  merge: input => ipcRenderer.invoke("notes:merge", input),
   showContextMenu: input => ipcRenderer.invoke("notes:show-context-menu", input),
   onContextAction: callback => ipcRenderer.on(
     "notes:context-action",
