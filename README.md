@@ -234,7 +234,7 @@ release must include the generated `.exe`, `.exe.blockmap` and `latest.yml` file
 
 ## Compatibility
 
-Version 1.4.6 targets Thunderbird 128 and newer. The Standard edition uses only
+Version 1.4.7 targets Thunderbird 128 and newer. The Standard edition uses only
 built-in MailExtension APIs and has no Experiment-specific maximum version. The
 Header Controls edition is limited to Thunderbird 154 because its native Message
 Header Toolbar integration must be verified for each new Thunderbird major
