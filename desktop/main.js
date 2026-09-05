@@ -628,6 +628,7 @@ async function askLlm(input) {
       provider,
       apiKey,
       prompt: input?.prompt,
+      selectedText: input?.selectedText,
       title: cleanTitle(input?.title),
       noteText: htmlToSearchText(String(input?.bodyHtml || "")),
     });

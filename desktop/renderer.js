@@ -698,6 +698,14 @@ function restoreEditorInsertionPoint(range) {
   editable.focus();
 }
 
+function selectedEditorText(range) {
+  const editable = editorArea.querySelector(".sun-editor-editable");
+  if (!editable || !range || range.collapsed || !editable.contains(range.commonAncestorContainer)) {
+    return "";
+  }
+  return NoteMarkdownSource.extractMarkdownText(range.cloneContents()).trim();
+}
+
 function safeGeneratedLink(value) {
   try {
     return ["http:", "https:", "mailto:"].includes(new URL(String(value || "")).protocol);
@@ -755,6 +763,9 @@ async function submitAiPrompt() {
   const requestedNoteId = selected.id;
   const requestedTabId = activeTabId;
   const requestedRange = editorInsertionRange?.cloneRange() || null;
+  const selectedText = selectedEditorText(requestedRange);
+  const insertionRange = requestedRange?.cloneRange() || null;
+  insertionRange?.collapse(false);
   aiProvider.disabled = true;
   aiPrompt.disabled = true;
   aiSubmit.disabled = true;
@@ -763,13 +774,14 @@ async function submitAiPrompt() {
     const result = await window.notesApi.llm.ask({
       provider: aiProvider.value,
       prompt,
+      selectedText,
       title: note.title,
       bodyHtml: note.bodyHtml,
     });
     if (selected?.id !== requestedNoteId || activeTabId !== requestedTabId) {
       throw new Error("The active note changed while the answer was being generated. Nothing was inserted.");
     }
-    restoreEditorInsertionPoint(requestedRange);
+    restoreEditorInsertionPoint(insertionRange);
     editor.insertHTML(aiExchangeHtml(
       result.providerLabel,
       prompt,

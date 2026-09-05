@@ -23,6 +23,14 @@ function collaborationInput({ title, noteText, prompt }) {
   ].join("\n");
 }
 
+function promptWithSelection(prompt, selectedText) {
+  const request = String(prompt || "").trim();
+  const selection = String(selectedText || "").trim();
+  return selection
+    ? `${request}\n\nSelected text from the note:\n${selection}`
+    : request;
+}
+
 function responseError(providerLabel, response, data) {
   const detail = String(
     data?.error?.message
@@ -108,7 +116,7 @@ function geminiText(data) {
 async function generateNoteReply(input, fetchImpl = globalThis.fetch) {
   const provider = String(input?.provider || "").toLowerCase();
   const apiKey = String(input?.apiKey || "").trim();
-  const prompt = String(input?.prompt || "").trim();
+  const prompt = promptWithSelection(input?.prompt, input?.selectedText);
   if (!["openai", "gemini"].includes(provider)) {
     throw new Error("Choose Gemini or ChatGPT.");
   }
@@ -192,5 +200,6 @@ module.exports = {
   generateNoteReply,
   geminiText,
   openAiText,
+  promptWithSelection,
   validateApiKey,
 };

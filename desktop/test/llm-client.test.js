@@ -68,6 +68,7 @@ test("Gemini Interactions request returns model output without persisting it", a
     title: "Notiz",
     noteText: "Vorhandener Text",
     prompt: "Bitte fortsetzen",
+    selectedText: "Dieser Absatz ist markiert.",
   }, fetchImpl);
 
   assert.equal(request.url, "https://generativelanguage.googleapis.com/v1beta/interactions");
@@ -77,6 +78,8 @@ test("Gemini Interactions request returns model output without persisting it", a
   assert.equal(body.store, false);
   assert.match(body.input, /Vorhandener Text/);
   assert.match(body.input, /Bitte fortsetzen/);
+  assert.match(body.input, /Selected text from the note:\nDieser Absatz ist markiert\./);
+  assert.ok(body.input.indexOf("Bitte fortsetzen") < body.input.indexOf("Dieser Absatz ist markiert."));
   assert.doesNotMatch(request.options.body, /gemini-secret/);
   assert.deepEqual(result, {
     provider: "gemini",

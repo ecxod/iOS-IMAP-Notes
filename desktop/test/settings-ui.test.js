@@ -65,7 +65,10 @@ test("editor shows a growing AI prompt bar only for configured providers", async
   assert.match(renderer, /llmSettings\?\.hasOpenAiApiKey/);
   assert.match(renderer, /notesApi\.llm\.ask/);
   assert.match(renderer, /setStatus\(aiState, errorText\(error\)\);[\s\S]*await loadSettings\(\)/);
-  assert.match(renderer, /restoreEditorInsertionPoint\(requestedRange\)/);
+  assert.match(renderer, /selectedText = selectedEditorText\(requestedRange\)/);
+  assert.match(renderer, /insertionRange\?\.collapse\(false\)/);
+  assert.match(renderer, /selectedText,/);
+  assert.match(renderer, /restoreEditorInsertionPoint\(insertionRange\)/);
   assert.match(renderer, /editor\.insertHTML\(aiExchangeHtml/);
   assert.match(renderer, /sanitizeGeneratedMarkdownHtml\(responseHtml\)/);
   assert.match(renderer, /result\.html \|\| NotePaste\.plainTextToHtml\(result\.text\)/);
