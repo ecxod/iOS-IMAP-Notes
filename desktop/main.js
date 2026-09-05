@@ -18,6 +18,7 @@ const {
   conversationMetadata,
   conversationNoteTitle,
   conversationSimilarity,
+  hasConversationFormattingUpdate,
   isLikelyContinuation,
   mergeConversation,
   providerForSharedUrl,
@@ -1122,6 +1123,47 @@ async function importSharedConversation(event, input) {
       `Import ${provider} conversation: ${note.title}`,
     );
     return { status: "created", note: noteSummary(note), history };
+  }
+
+  const improvedBodyHtml = renderConversation(remote);
+  if (
+    candidate.exactShare
+    && hasConversationFormattingUpdate(candidate.state.snapshot, remote)
+    && String(candidate.note.bodyHtml || "") !== improvedBodyHtml
+  ) {
+    const providerLabel = provider === "gemini" ? "Gemini" : "ChatGPT";
+    const parent = BrowserWindow.fromWebContents(event.sender);
+    const choice = await dialog.showMessageBox(parent, {
+      type: "warning",
+      title: "Improved conversation formatting available",
+      message: `“${candidate.note.title}” was imported with an older ${providerLabel} formatter.`,
+      detail: "Replace the conversation body with the improved public version? Local edits inside this note will be overwritten. Cancel leaves the note unchanged.",
+      buttons: ["Replace with improved formatting", "Cancel"],
+      defaultId: 1,
+      cancelId: 1,
+      noLink: true,
+    });
+    if (choice.response !== 0) {
+      return { status: "canceled" };
+    }
+    const metadata = conversationMetadata(candidate.note.conversation, remote);
+    const saved = await saveNote({
+      ...candidate.note,
+      bodyHtml: improvedBodyHtml,
+    }, { conversation: metadata, skipConversationHistory: true });
+    const history = await recordImportedConversation(
+      saved.note,
+      remote,
+      `Reformat ${provider} conversation: ${saved.note.title}`,
+    );
+    return {
+      status: "updated",
+      note: noteSummary(saved.note),
+      appendedTurns: 0,
+      reformatted: true,
+      warning: saved.warning,
+      history,
+    };
   }
 
   const merged = mergeConversation(candidate.state.snapshot, candidate.note, remote);

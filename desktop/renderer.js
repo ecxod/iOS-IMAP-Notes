@@ -1699,8 +1699,10 @@ async function importSharedConversation() {
     }
     newNoteShareLink.value = "";
     const action = result.status === "created" ? "created" : "updated";
-    const additions = result.status === "updated"
-      ? ` ${result.appendedTurns} new prompt/answer block${result.appendedTurns === 1 ? "" : "s"} appended.`
+    const additions = result.reformatted
+      ? " The existing conversation was replaced with the improved formatting."
+      : result.status === "updated"
+        ? ` ${result.appendedTurns} new prompt/answer block${result.appendedTurns === 1 ? "" : "s"} appended.`
       : "";
     const history = result.history?.warning
       ? ` The note is safe, but Git history failed: ${result.history.warning}`

@@ -51,6 +51,65 @@ function extractionScript(provider, citationGroups = []) {
             });
             clone.append(sources);
           }
+
+          const sourceBlocks = [...response.querySelectorAll("code-block")];
+          [...clone.querySelectorAll("code-block")].forEach((block, index) => {
+            const sourceBlock = sourceBlocks[index];
+            if (!sourceBlock?.innerText?.trim()) {
+              block.remove();
+              return;
+            }
+            const sourceCode = sourceBlock.querySelector('pre code[data-test-id="code-content"]');
+            const outputCode = sourceBlock.querySelector('pre code[data-test-id="code-output-stdout-stderr"]');
+            const fragment = document.createDocumentFragment();
+            const codeText = sourceCode?.innerText?.trimEnd() || "";
+            const visibleText = sourceBlock.innerText.trim();
+            const firstLine = visibleText.split("\\n")[0]?.trim() || "";
+            if (firstLine && codeText && firstLine !== codeText.split("\\n")[0]?.trim()) {
+              const label = document.createElement("p");
+              const strong = document.createElement("strong");
+              strong.textContent = firstLine;
+              label.append(strong);
+              fragment.append(label);
+            }
+            if (codeText) {
+              const pre = document.createElement("pre");
+              const code = document.createElement("code");
+              code.textContent = codeText;
+              pre.append(code);
+              fragment.append(pre);
+            }
+            const outputText = outputCode?.innerText?.trimEnd() || "";
+            if (outputText) {
+              const label = document.createElement("p");
+              const strong = document.createElement("strong");
+              strong.textContent = "Code output";
+              label.append(strong);
+              const pre = document.createElement("pre");
+              const code = document.createElement("code");
+              code.textContent = outputText;
+              pre.append(code);
+              fragment.append(label, pre);
+            }
+            block.replaceWith(fragment);
+          });
+
+          const sourceFiles = [...response.querySelectorAll("generated-file")];
+          [...clone.querySelectorAll("generated-file")].forEach((file, index) => {
+            const details = (sourceFiles[index]?.innerText || "")
+              .split("\\n")
+              .map(line => line.trim())
+              .filter(line => line && line.toLowerCase() !== "open");
+            if (!details.length) {
+              file.remove();
+              return;
+            }
+            const summary = document.createElement("p");
+            const label = document.createElement("strong");
+            label.textContent = "Generated file: ";
+            summary.append(label, details.join(" · "));
+            file.replaceWith(summary);
+          });
           clone.querySelectorAll("button, source-footnote, source-inline-chip, sources-carousel-inline")
             .forEach(node => node.remove());
           assistantHtml = clone.innerHTML.trim();

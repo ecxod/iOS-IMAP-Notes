@@ -4,10 +4,12 @@ const {
   conversationMetadata,
   conversationNoteTitle,
   conversationSimilarity,
+  hasConversationFormattingUpdate,
   isLikelyContinuation,
   mergeConversation,
   normalizeConversation,
   providerForSharedUrl,
+  preservePreformattedLineBreaks,
   renderConversation,
   sanitizeTurnHtml,
 } = require("../conversation-import");
@@ -82,6 +84,8 @@ test("formatting changes do not change conversation identity", () => {
   });
   assert.equal(plain.revision, rich.revision);
   assert.equal(conversationSimilarity(plain, rich).exactPrefix, true);
+  assert.equal(hasConversationFormattingUpdate(plain, rich), true);
+  assert.equal(hasConversationFormattingUpdate(rich, rich), false);
 });
 
 test("removes unsafe and unsupported imported markup", () => {
@@ -89,6 +93,15 @@ test("removes unsafe and unsupported imported markup", () => {
     sanitizeTurnHtml('<img src="https://example.org/tracker"><a href="data:text/html,bad">bad</a><p style="color:red">Safe</p>'),
     "<p>Safe</p>",
   );
+});
+
+test("preserves preformatted line breaks through SunEditor-safe markup", () => {
+  const input = '<pre><code><span class="hljs-keyword">import</span> json\n'
+    + '<span class="hljs-keyword">from</span> package import value\n\nprint(value)</code></pre>';
+  const expected = "<pre><code><span>import</span> json<br>"
+    + "<span>from</span> package import value<br><br>print(value)</code></pre>";
+  assert.equal(sanitizeTurnHtml(input), expected);
+  assert.equal(preservePreformattedLineBreaks(expected), expected);
 });
 
 test("recognizes a longer conversation only when the stored turns are its prefix", () => {

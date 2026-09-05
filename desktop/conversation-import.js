@@ -101,12 +101,22 @@ function normalizeTurn(value, index) {
 }
 
 function sanitizeTurnHtml(value) {
-  return sanitizeHtml(String(value || ""), {
+  const safeHtml = sanitizeHtml(String(value || ""), {
     ...TURN_HTML_OPTIONS,
     exclusiveFilter(frame) {
       return frame.tag === "a" && !frame.attribs.href;
     },
   }).trim();
+  return preservePreformattedLineBreaks(safeHtml);
+}
+
+function preservePreformattedLineBreaks(value) {
+  return String(value || "").replace(
+    /(<pre(?:\s[^>]*)?>)([\s\S]*?)(<\/pre>)/gi,
+    (_match, opening, content, closing) => (
+      `${opening}${content.replace(/\r\n?|\n/g, "<br>")}${closing}`
+    ),
+  );
 }
 
 function normalizeConversation(value) {
@@ -191,6 +201,13 @@ function isLikelyContinuation(similarity) {
     && similarity.commonTurns >= 2;
 }
 
+function hasConversationFormattingUpdate(base, remote) {
+  const similarity = conversationSimilarity(base, remote);
+  return similarity.commonTurns === similarity.leftTurns
+    && similarity.commonTurns === similarity.rightTurns
+    && renderConversation(base) !== renderConversation(remote);
+}
+
 function mergeConversation(base, localNote, remote) {
   const baseBodyHtml = renderConversation(base);
   const remoteBodyHtml = renderConversation(remote);
@@ -241,11 +258,13 @@ module.exports = {
   conversationNoteTitle,
   conversationMetadata,
   conversationSimilarity,
+  hasConversationFormattingUpdate,
   isLikelyContinuation,
   mergeConversation,
   normalizeConversation,
   parseSharedUrl,
   providerForSharedUrl,
+  preservePreformattedLineBreaks,
   renderConversation,
   renderTurns,
   sanitizeTurnHtml,
