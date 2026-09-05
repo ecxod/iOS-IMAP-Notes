@@ -51,6 +51,7 @@ fi
 mkdir -p "$stage_dir/scripts"
 cp \
   scripts/apple-note.mjs \
+  scripts/folder-refresh.mjs \
   scripts/header-controls.mjs \
   scripts/i18n.js \
   scripts/rfc822.mjs \

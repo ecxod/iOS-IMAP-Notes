@@ -4,6 +4,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const { updaterErrorMessage } = require("./update-utils");
+const { mergeEncryptedApiKeys, publicApiKeySettings } = require("./secret-settings");
 const {
   MAX_IMAGE_BYTES,
   MAX_NOTE_LENGTH,
@@ -299,6 +300,7 @@ async function readSettingsRaw() {
   return {
     version: SETTINGS_VERSION,
     accounts: Array.isArray(data?.accounts) ? data.accounts : [],
+    llm: data?.llm && typeof data.llm === "object" ? data.llm : {},
   };
 }
 
@@ -317,14 +319,14 @@ function publicAccount(account) {
   };
 }
 
-async function encryptPassword(password) {
+async function encryptSecret(secret) {
   if (typeof safeStorage.encryptStringAsync === "function") {
-    return (await safeStorage.encryptStringAsync(password)).toString("base64");
+    return (await safeStorage.encryptStringAsync(secret)).toString("base64");
   }
   if (!safeStorage.isEncryptionAvailable()) {
-    throw new Error("Secure password storage is not available on this system.");
+    throw new Error("Secure credential storage is not available on this system.");
   }
-  return safeStorage.encryptString(password).toString("base64");
+  return safeStorage.encryptString(secret).toString("base64");
 }
 
 async function decryptPassword(account) {
@@ -355,6 +357,7 @@ async function listSettings() {
   const settings = await readSettingsRaw();
   return {
     accounts: settings.accounts.map(publicAccount),
+    llm: publicApiKeySettings(settings),
     credentialProtection: credentialProtection(),
   };
 }
@@ -374,7 +377,7 @@ async function saveSettings(input) {
     ids.add(account.id);
     const previous = existingById.get(account.id);
     const passwordCipher = account.password
-      ? await encryptPassword(account.password)
+      ? await encryptSecret(account.password)
       : previous?.passwordCipher;
     if (!passwordCipher) {
       throw new Error(`Enter a password for ${account.name}.`);
@@ -389,7 +392,8 @@ async function saveSettings(input) {
   for (const item of mailboxesToEnsure) {
     await ensureMailbox(item.account, item.password);
   }
-  await writeJson(settingsFile(), { version: SETTINGS_VERSION, accounts });
+  const llm = await mergeEncryptedApiKeys(existing, input?.llm, encryptSecret);
+  await writeJson(settingsFile(), { version: SETTINGS_VERSION, accounts, llm });
   return listSettings();
 }
 

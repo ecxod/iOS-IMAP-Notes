@@ -1,6 +1,16 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { ensureMailboxWithClient } = require("../imap-service");
+const {
+  createNoteSearchQuery,
+  ensureMailboxWithClient,
+} = require("../imap-service");
+
+test("note synchronization excludes messages marked as deleted", () => {
+  assert.deepEqual(createNoteSearchQuery(), {
+    deleted: false,
+    header: { "x-uniform-type-identifier": "com.apple.mail-note" },
+  });
+});
 
 test("ensureMailboxWithClient leaves an existing Notes mailbox unchanged", async () => {
   let creates = 0;

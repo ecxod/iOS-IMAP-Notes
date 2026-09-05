@@ -40,6 +40,15 @@
   "background": {
     "page": "background.html"
   },
+  "browser_action": {
+    "allowed_spaces": ["mail"],
+    "default_title": "__MSG_refreshNotes__",
+    "default_label": "__MSG_refreshNotes__",
+    "default_icon": {
+      "16": "images/iOSNotes.png",
+      "32": "images/iOSNotes.png"
+    }
+  },
   "message_display_action": {
     "default_title": "__MSG_editNote__",
     "default_label": "__MSG_editNote__",

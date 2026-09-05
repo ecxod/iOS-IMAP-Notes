@@ -12,8 +12,10 @@ import {
 import { createRawAppleNoteMessage } from "./scripts/rfc822.mjs";
 import {
   addNewNoteHeaderListener,
+  refreshNoteFolder,
   setNoteHeaderMode,
 } from "./scripts/header-controls.mjs";
+import { refreshDisplayedFolder } from "./scripts/folder-refresh.mjs";
 
 const EDIT_MENU_ID = "iosNotesEdit";
 const NEW_NOTE_MENU_ID = "iosNotesNew";
@@ -571,6 +573,31 @@ browser.messageDisplayAction.onClicked.addListener(async tab => {
     } else {
       await beginEditing(tab.id);
     }
+  } catch (error) {
+    await showError(error);
+  }
+});
+
+browser.browserAction.onClicked.addListener(async tab => {
+  try {
+    if (editingTabs.has(tab.id)) {
+      throw new Error(text(
+        "finishEditingBeforeRefresh",
+        "Save or cancel the current edit before refreshing the folder.",
+      ));
+    }
+    const refreshed = await refreshNoteFolder(tab.id)
+      || await refreshDisplayedFolder(browser, tab.id);
+    if (!refreshed) {
+      throw new Error(text(
+        "folderRefreshUnavailable",
+        "Open a mail folder before refreshing notes.",
+      ));
+    }
+    await browser.browserAction.setBadgeText({ tabId: tab.id, text: "✓" });
+    setTimeout(() => {
+      browser.browserAction.setBadgeText({ tabId: tab.id, text: "" }).catch(() => {});
+    }, 1500);
   } catch (error) {
     await showError(error);
   }

@@ -5,3 +5,7 @@ export function setNoteHeaderMode(tabId, enabled, newNoteLabel) {
 export function addNewNoteHeaderListener(listener) {
   browser.notesHeader.onNewNote.addListener(listener);
 }
+
+export function refreshNoteFolder(tabId) {
+  return browser.notesHeader.refreshFolder(tabId);
+}

@@ -22,6 +22,18 @@
             "type": "string"
           }
         ]
+      },
+      {
+        "name": "refreshFolder",
+        "type": "function",
+        "async": true,
+        "description": "Refresh the folder displayed in a three-pane mail tab.",
+        "parameters": [
+          {
+            "name": "tabId",
+            "type": "integer"
+          }
+        ]
       }
     ],
     "events": [

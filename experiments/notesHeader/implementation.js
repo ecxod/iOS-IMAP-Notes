@@ -30,6 +30,40 @@ function getMessageWindow(context, tabId) {
   return null;
 }
 
+function getMailTabFolder(context, tabId) {
+  const { nativeTab } = context.extension.tabManager.get(tabId);
+  if (nativeTab?.mode?.name !== "mail3PaneTab") {
+    return null;
+  }
+  return nativeTab.chromeBrowser?.contentWindow?.gFolder || null;
+}
+
+function refreshFolder(context, tabId) {
+  const folder = getMailTabFolder(context, tabId);
+  if (!folder) {
+    return false;
+  }
+
+  if (typeof folder.updateFolderWithListener !== "function") {
+    folder.updateFolder(null);
+    return true;
+  }
+
+  return new Promise((resolve, reject) => {
+    const listener = {
+      OnStartRunningUrl() {},
+      OnStopRunningUrl(_url, statusCode) {
+        if (Components.isSuccessCode(statusCode)) {
+          resolve(true);
+        } else {
+          reject(new Error(`Folder refresh failed with error 0x${statusCode.toString(16)}`));
+        }
+      },
+    };
+    folder.updateFolderWithListener(null, listener);
+  });
+}
+
 function ensureStyle(document) {
   if (document.getElementById(STYLE_ID)) {
     return;
@@ -195,6 +229,10 @@ var notesHeader = class extends ExtensionCommon.ExtensionAPI {
       notesHeader: {
         setNoteMode(tabId, enabled, newNoteLabel) {
           return setNoteMode(context, tabId, enabled, newNoteLabel);
+        },
+
+        refreshFolder(tabId) {
+          return refreshFolder(context, tabId);
         },
 
         onNewNote: new ExtensionCommon.EventManager({

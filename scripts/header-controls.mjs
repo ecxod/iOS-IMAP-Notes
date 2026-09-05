@@ -8,3 +8,7 @@ export async function setNoteHeaderMode() {
 export function addNewNoteHeaderListener() {
   // Native message-header controls are unavailable without an Experiment API.
 }
+
+export async function refreshNoteFolder() {
+  return false;
+}

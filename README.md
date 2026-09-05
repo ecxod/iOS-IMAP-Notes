@@ -94,6 +94,11 @@ actions in that toolbar are disabled for Apple Notes, except **Delete** and
 **More**, and a **New note** button is added. The Standard edition deliberately
 leaves Thunderbird's native email actions unchanged.
 
+The **Refresh notes** button in Thunderbird's unified mail toolbar requests an
+immediate update of the displayed IMAP folder. Finish or cancel an open note
+edit before refreshing so that Thunderbird never replaces unsaved editor
+content by changing the displayed message.
+
 Selecting an Apple Note enters edit mode locally. Nothing is written back to
 IMAP until **Save note** is explicitly activated.
 
@@ -162,9 +167,11 @@ also excludes the Experiment schema and implementation and contains no call to
 
 The optional application in `desktop/` uses the former SunEditor interface. It
 supports any number of IMAP accounts. **Settings** stores an account name, IMAP
-host, port, TLS mode, username and Notes folder for each account. On Windows,
-passwords are encrypted for the signed-in user with DPAPI through Electron's
-`safeStorage`; passwords are never written to the notes cache.
+host, port, TLS mode, username and Notes folder for each account. It also accepts
+API keys for ChatGPT/OpenAI and Gemini for future AI features. On Windows,
+passwords and API keys are encrypted for the signed-in user with DPAPI through
+Electron's `safeStorage`; credentials are never written to the notes cache or
+returned in plaintext to the renderer.
 
 Opened notes remain available in separate, closeable editor tabs, including
 unsaved changes while another tab is active. Selecting an account on the left

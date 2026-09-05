@@ -7,7 +7,7 @@
   "license": "GPL-3.0-only",
   "main": "main.js",
   "scripts": {
-    "check": "node --check apple-note.js && node --check imap-service.js && node --check note-parser-worker.js && node --check update-utils.js && node --check main.js && node --check preload.js && node --check search-utils.js && node --check paste-utils.js && node --check tab-utils.js && node --check renderer.js",
+    "check": "node --check apple-note.js && node --check imap-service.js && node --check note-parser-worker.js && node --check update-utils.js && node --check secret-settings.js && node --check main.js && node --check preload.js && node --check search-utils.js && node --check paste-utils.js && node --check tab-utils.js && node --check renderer.js",
     "test": "node --test test/*.test.js",
     "dist:dir": "electron-builder --dir",
     "dist:win": "electron-builder --win nsis --publish never",
@@ -33,6 +33,7 @@
       "imap-service.js",
       "note-parser-worker.js",
       "update-utils.js",
+      "secret-settings.js",
       "preload.js",
       "search-utils.js",
       "paste-utils.js",

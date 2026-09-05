@@ -32,6 +32,8 @@ test("the default manifest is the ATN edition without an Experiment", async () =
   assert.equal(manifest.theme_experiment, undefined);
   assert.equal(gecko?.strict_max_version, undefined);
   assert.equal(gecko?.update_url, undefined);
+  assert.equal(manifest.browser_action.default_label, "__MSG_refreshNotes__");
+  assert.deepEqual(manifest.browser_action.allowed_spaces, ["mail"]);
 });
 
 test("the ATN runtime has no notesHeader API dependency", async () => {
@@ -58,6 +60,7 @@ test("the GitHub Header Controls adapter is kept in its separate variant", async
   const update = updates.addons["iOSNotes@siliconvenice.net"].updates.at(-1);
 
   assert.match(experimentClient, /browser\.notesHeader\.setNoteMode/);
+  assert.match(experimentClient, /browser\.notesHeader\.refreshFolder/);
   assert.match(experimentClient, /browser\.notesHeader\.onNewNote/);
   assert.equal(
     fragment.browser_specific_settings.gecko.update_url,

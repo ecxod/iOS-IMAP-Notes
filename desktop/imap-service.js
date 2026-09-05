@@ -125,15 +125,20 @@ async function ensureMailbox(account, password) {
   return withClient(account, password, client => ensureMailboxWithClient(client, account.mailbox));
 }
 
+function createNoteSearchQuery() {
+  return {
+    deleted: false,
+    header: { "x-uniform-type-identifier": APPLE_NOTE_UTI },
+  };
+}
+
 async function syncAccount(account, password, cachedNotes = []) {
   return withClient(account, password, async client => {
     await ensureMailboxWithClient(client, account.mailbox);
     const lock = await client.getMailboxLock(account.mailbox, { readOnly: true });
     try {
       const uidValidity = String(client.mailbox.uidValidity);
-      const uids = await client.search({
-        header: { "x-uniform-type-identifier": APPLE_NOTE_UTI },
-      }, { uid: true }) || [];
+      const uids = await client.search(createNoteSearchQuery(), { uid: true }) || [];
       if (!uids.length) {
         return { notes: [], changed: cachedNotes.length > 0 };
       }
@@ -290,6 +295,7 @@ async function deleteImapNote(account, password, note) {
 }
 
 module.exports = {
+  createNoteSearchQuery,
   createImapNote,
   deleteImapNote,
   ensureMailbox,

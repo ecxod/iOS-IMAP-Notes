@@ -41,6 +41,8 @@ const newNoteFolder = document.getElementById("new-note-folder");
 const settingsDialog = document.getElementById("settings-dialog");
 const settingsState = document.getElementById("settings-state");
 const accountList = document.getElementById("account-list");
+const openAiApiKey = document.getElementById("openai-api-key");
+const geminiApiKey = document.getElementById("gemini-api-key");
 const appVersion = document.getElementById("app-version");
 const updateStateText = document.getElementById("update-state");
 const checkUpdatesButton = document.getElementById("check-updates");
@@ -785,6 +787,17 @@ async function loadSettings() {
   const settings = await window.notesApi.settings.list();
   accounts = settings.accounts;
   document.getElementById("credential-protection").textContent = settings.credentialProtection;
+  for (const element of document.querySelectorAll(".credential-protection-copy")) {
+    element.textContent = settings.credentialProtection;
+  }
+  openAiApiKey.value = "";
+  openAiApiKey.placeholder = settings.llm?.hasOpenAiApiKey
+    ? "Stored — leave blank to keep"
+    : "Enter API key";
+  geminiApiKey.value = "";
+  geminiApiKey.placeholder = settings.llm?.hasGeminiApiKey
+    ? "Stored — leave blank to keep"
+    : "Enter API key";
   renderAccountChoices();
   renderList();
   return settings;
@@ -1025,10 +1038,16 @@ async function saveSettings() {
   if (!form.reportValidity()) {
     return;
   }
-  settingsState.textContent = "Creating missing Notes folders and saving…";
+  settingsState.textContent = "Saving settings and creating missing Notes folders…";
   try {
     const accountValues = [...accountList.querySelectorAll(".account-card")].map(collectAccount);
-    await window.notesApi.settings.save({ accounts: accountValues });
+    await window.notesApi.settings.save({
+      accounts: accountValues,
+      llm: {
+        openaiApiKey: openAiApiKey.value,
+        geminiApiKey: geminiApiKey.value,
+      },
+    });
     await loadSettings();
     settingsDialog.close("save");
     await syncNotes();

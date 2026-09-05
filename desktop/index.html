@@ -61,10 +61,26 @@
         aria-keyshortcuts="Control+Shift+V Meta+Shift+V"
         disabled
       >Paste plain text</button>
-      <button id="export-note" type="button">Export</button>
-      <button id="delete-note" type="button" class="danger">Delete</button>
-      <button id="save-note" type="button" class="primary">Save</button>
-      <button id="close-app" type="button" title="Close application">Close</button>
+      <button id="export-note" type="button" class="icon-button" title="Export Note" aria-label="Export Note">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M12 5h7v7M19 5l-9 9M12 9H5v12h12v-7"></path>
+        </svg>
+      </button>
+      <button id="delete-note" type="button" class="danger icon-button" title="Delete Note" aria-label="Delete Note">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M3 6h18M8 6V4h8v2M19 6l-1 15H6L5 6M10 10v7M14 10v7"></path>
+        </svg>
+      </button>
+      <button id="save-note" type="button" class="primary icon-button" title="Save Note" aria-label="Save Note">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M5 3h12l2 2v16H5zM8 3v6h8V3M8 21v-8h8v8"></path>
+        </svg>
+      </button>
+      <button id="close-app" type="button" class="icon-button" title="Close" aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M5 5l14 14M19 5L5 19"></path>
+        </svg>
+      </button>
     </header>
     <section id="empty-state">
       <h2 id="empty-state-title">No note selected</h2>
@@ -96,12 +112,28 @@
     <form method="dialog" id="settings-form">
       <header class="dialog-header">
         <div>
-          <h2>IMAP accounts</h2>
-          <p>Add any number of accounts. Passwords are encrypted with <span id="credential-protection">the operating system</span>.</p>
+          <h2>Settings</h2>
+          <p>Add IMAP accounts and AI provider keys. Credentials are encrypted with <span id="credential-protection">the operating system</span>.</p>
         </div>
         <button id="add-account" type="button">Add account</button>
       </header>
       <div id="account-list"></div>
+      <section class="api-key-settings" aria-labelledby="api-key-settings-title">
+        <div>
+          <h3 id="api-key-settings-title">AI providers</h3>
+          <p>Keys are encrypted with <span class="credential-protection-copy">the operating system</span>. Leave a stored key blank to keep it.</p>
+        </div>
+        <div class="api-key-grid">
+          <label>
+            ChatGPT / OpenAI API key
+            <input id="openai-api-key" type="password" autocomplete="new-password" spellcheck="false" placeholder="Enter API key">
+          </label>
+          <label>
+            Gemini API key
+            <input id="gemini-api-key" type="password" autocomplete="new-password" spellcheck="false" placeholder="Enter API key">
+          </label>
+        </div>
+      </section>
       <p id="settings-state" role="status"></p>
       <footer class="dialog-actions">
         <button value="cancel" type="submit" formnovalidate>Cancel</button>
