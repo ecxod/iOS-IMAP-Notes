@@ -1,4 +1,4 @@
-/* global NoteImages, NotePaste, NoteSearch, NoteTabs, SUNEDITOR */
+/* global NoteEditorHtml, NoteImages, NotePaste, NoteSearch, NoteTabs, SUNEDITOR */
 
 let notes = [];
 let accounts = [];
@@ -176,7 +176,7 @@ function editorHtmlForNote(note) {
       element.replaceWith(img);
     }
   }
-  return sanitizeHtml(template.innerHTML);
+  return NoteEditorHtml.normalizeForSunEditor(sanitizeHtml(template.innerHTML));
 }
 
 function downscaledOriginalImage(original, liveImage) {

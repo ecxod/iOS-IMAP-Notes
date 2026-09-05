@@ -66,3 +66,14 @@ test("the editable note shows a high-contrast text caret and focus boundary", as
   assert.match(css, /\.sun-editor-editable\[contenteditable="true"\]:not\(\.se-read-only\)\s*{[^}]*caret-color:\s*#0067c0/s);
   assert.match(css, /\.sun-editor-editable\[contenteditable="true"\]:not\(\.se-read-only\):focus\s*{[^}]*outline:/s);
 });
+
+test("notes are normalized before SunEditor receives list content", async () => {
+  const [html, renderer, packageJson] = await Promise.all([
+    readFile(path.join(desktopRoot, "index.html"), "utf8"),
+    readFile(path.join(desktopRoot, "renderer.js"), "utf8"),
+    readFile(path.join(desktopRoot, "package.json"), "utf8"),
+  ]);
+  assert.match(html, /<script defer src="editor-html\.js"><\/script>[\s\S]*renderer\.js/);
+  assert.match(renderer, /NoteEditorHtml\.normalizeForSunEditor\(sanitizeHtml\(template\.innerHTML\)\)/);
+  assert.match(packageJson, /"editor-html\.js"/);
+});
