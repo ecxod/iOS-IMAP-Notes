@@ -694,15 +694,51 @@ function restoreEditorInsertionPoint(range) {
   editable.focus();
 }
 
-function aiExchangeHtml(providerLabel, prompt, response) {
+function safeGeneratedLink(value) {
+  try {
+    return ["http:", "https:", "mailto:"].includes(new URL(String(value || "")).protocol);
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeGeneratedMarkdownHtml(html) {
+  const allowedTags = new Set([
+    "A", "BLOCKQUOTE", "BR", "CODE", "DEL", "EM", "H1", "H2", "H3", "H4", "H5", "H6",
+    "HR", "LI", "OL", "P", "PRE", "STRONG", "TABLE", "TBODY", "TD", "TH", "THEAD", "TR", "UL",
+  ]);
+  const template = document.createElement("template");
+  template.innerHTML = String(html || "");
+  for (const element of [...template.content.querySelectorAll("*")]) {
+    if (!allowedTags.has(element.tagName)) {
+      element.replaceWith(document.createTextNode(element.textContent || ""));
+      continue;
+    }
+    for (const attribute of [...element.attributes]) {
+      const name = attribute.name.toLowerCase();
+      const value = attribute.value.trim();
+      const allowed = (element.tagName === "A" && ["href", "title"].includes(name))
+        || (element.tagName === "OL" && name === "start" && /^\d+$/.test(value))
+        || (["TD", "TH"].includes(element.tagName) && name === "align" && /^(left|center|right)$/.test(value))
+        || (element.tagName === "CODE" && name === "class" && /^language-[a-z0-9_+-]+$/i.test(value));
+      if (!allowed || (element.tagName === "A" && name === "href" && !safeGeneratedLink(value))) {
+        element.removeAttribute(attribute.name);
+      }
+    }
+  }
+  return sanitizeHtml(template.innerHTML);
+}
+
+function aiExchangeHtml(providerLabel, prompt, responseHtml) {
+  const labelHtml = NotePaste.plainTextToHtml(providerLabel);
   const promptHtml = NotePaste.plainTextToHtml(prompt);
-  const responseHtml = NotePaste.plainTextToHtml(response);
+  const safeResponseHtml = sanitizeGeneratedMarkdownHtml(responseHtml);
   return [
     "<div><br></div>",
-    `<div><strong>${providerLabel} prompt:</strong></div>`,
+    `<div><strong>${labelHtml} prompt:</strong></div>`,
     `<div>${promptHtml}</div>`,
-    `<div><strong>${providerLabel}:</strong></div>`,
-    `<div>${responseHtml}</div>`,
+    `<div><strong>${labelHtml}:</strong></div>`,
+    `<div>${safeResponseHtml}</div>`,
   ].join("");
 }
 
@@ -730,7 +766,11 @@ async function submitAiPrompt() {
       throw new Error("The active note changed while the answer was being generated. Nothing was inserted.");
     }
     restoreEditorInsertionPoint(requestedRange);
-    editor.insertHTML(aiExchangeHtml(result.providerLabel, prompt, result.text), true, false);
+    editor.insertHTML(aiExchangeHtml(
+      result.providerLabel,
+      prompt,
+      result.html || NotePaste.plainTextToHtml(result.text),
+    ), true, false);
     rememberEditorInsertionPoint();
     setDirty(true);
     aiPrompt.value = "";

@@ -1,5 +1,7 @@
 "use strict";
 
+const { markdownToHtml } = require("./markdown-utils");
+
 const MAX_PROMPT_LENGTH = 20_000;
 const MAX_NOTE_CONTEXT_LENGTH = 60_000;
 const REQUEST_TIMEOUT = 90_000;
@@ -120,7 +122,13 @@ async function generateNoteReply(input, fetchImpl = globalThis.fetch) {
     if (!text) {
       throw new Error("ChatGPT returned no text.");
     }
-    return { provider, providerLabel: "ChatGPT", model: OPENAI_MODEL, text };
+    return {
+      provider,
+      providerLabel: "ChatGPT",
+      model: OPENAI_MODEL,
+      text,
+      html: await markdownToHtml(text),
+    };
   }
 
   const data = await requestJson("Gemini", "https://generativelanguage.googleapis.com/v1beta/interactions", {
@@ -141,7 +149,13 @@ async function generateNoteReply(input, fetchImpl = globalThis.fetch) {
   if (!text) {
     throw new Error("Gemini returned no text.");
   }
-  return { provider, providerLabel: "Gemini", model: GEMINI_MODEL, text };
+  return {
+    provider,
+    providerLabel: "Gemini",
+    model: GEMINI_MODEL,
+    text,
+    html: await markdownToHtml(text),
+  };
 }
 
 module.exports = {

@@ -42,6 +42,7 @@ test("OpenAI Responses request sends note context without persisting the respons
     providerLabel: "ChatGPT",
     model: OPENAI_MODEL,
     text: "Revised paragraph",
+    html: "<p>Revised paragraph</p>\n",
   });
 });
 
@@ -81,6 +82,7 @@ test("Gemini Interactions request returns model output without persisting it", a
     providerLabel: "Gemini",
     model: GEMINI_MODEL,
     text: "Neue Fassung",
+    html: "<p>Neue Fassung</p>\n",
   });
 });
 

@@ -36,6 +36,8 @@ test("editor shows a growing AI prompt bar only for configured providers", async
   assert.match(renderer, /notesApi\.llm\.ask/);
   assert.match(renderer, /restoreEditorInsertionPoint\(requestedRange\)/);
   assert.match(renderer, /editor\.insertHTML\(aiExchangeHtml/);
+  assert.match(renderer, /sanitizeGeneratedMarkdownHtml\(responseHtml\)/);
+  assert.match(renderer, /result\.html \|\| NotePaste\.plainTextToHtml\(result\.text\)/);
   assert.match(renderer, /selected\?\.id !== requestedNoteId \|\| activeTabId !== requestedTabId/);
   assert.match(styles, /#ai-compose\s*{[^}]*width:\s*100%[^}]*grid-template-columns:\s*auto minmax\(0, 1fr\) auto/s);
   assert.match(styles, /#ai-prompt\s*{[^}]*max-height:[^}]*resize:\s*none/s);
