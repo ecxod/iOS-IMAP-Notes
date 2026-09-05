@@ -1,4 +1,4 @@
-/* global NoteEditorHtml, NoteImages, NotePaste, NoteSearch, NoteTabs, SUNEDITOR */
+/* global NoteEditorHtml, NoteImages, NoteMarkdownSource, NotePaste, NoteSearch, NoteTabs, SUNEDITOR */
 
 let notes = [];
 let accounts = [];
@@ -36,6 +36,7 @@ const aiPrompt = document.getElementById("ai-prompt");
 const aiSubmit = document.getElementById("ai-submit");
 const aiState = document.getElementById("ai-state");
 const saveButton = document.getElementById("save-note");
+const convertMarkdownButton = document.getElementById("convert-markdown");
 const deleteButton = document.getElementById("delete-note");
 const exportButton = document.getElementById("export-note");
 const searchInput = document.getElementById("note-search");
@@ -901,6 +902,7 @@ function showSelectedNote(note, { isDirty = false } = {}) {
   title.disabled = Boolean(note.readOnly);
   deleteButton.disabled = false;
   exportButton.disabled = false;
+  convertMarkdownButton.disabled = Boolean(note.readOnly);
   setDirty(isDirty);
   if (note.readOnly) {
     saveState.textContent = note.unsupportedReason
@@ -922,6 +924,7 @@ function showEmptyState({ scope = null } = {}) {
   noteHome.textContent = "";
   deleteButton.disabled = true;
   exportButton.disabled = true;
+  convertMarkdownButton.disabled = true;
   emptyState.hidden = false;
   editorArea.hidden = true;
   aiCompose.hidden = true;
@@ -1280,6 +1283,47 @@ async function exportNote() {
   }
 }
 
+async function convertMarkdownToHtml() {
+  if (!selected || selected.readOnly || convertMarkdownButton.disabled) {
+    return;
+  }
+  const editable = editorArea.querySelector(".sun-editor-editable");
+  if (!editable) {
+    return;
+  }
+  if (editable.querySelector("img")) {
+    saveState.textContent = "Markdown conversion is available only for text-only notes.";
+    return;
+  }
+  const markdown = NoteMarkdownSource.extractMarkdownText(editable);
+  if (!markdown.trim()) {
+    saveState.textContent = "There is no Markdown text to convert.";
+    return;
+  }
+  convertMarkdownButton.disabled = true;
+  saveState.textContent = "Converting Markdown…";
+  try {
+    const converted = await window.notesApi.markdown.convert(markdown);
+    const safeHtml = NoteEditorHtml.normalizeForSunEditor(
+      sanitizeGeneratedMarkdownHtml(converted),
+    );
+    suppressChanges = true;
+    try {
+      editor.setContents(safeHtml);
+    } finally {
+      suppressChanges = false;
+    }
+    loadedImageMetadata = [];
+    setDirty(true);
+    editor.focus();
+    scheduleSearchHighlights();
+  } catch (error) {
+    saveState.textContent = errorText(error);
+  } finally {
+    convertMarkdownButton.disabled = Boolean(selected?.readOnly);
+  }
+}
+
 async function syncNotes() {
   if (!captureActiveTab()) {
     return;
@@ -1568,6 +1612,7 @@ async function init() {
   saveButton.addEventListener("click", saveNote);
   deleteButton.addEventListener("click", deleteNote);
   exportButton.addEventListener("click", exportNote);
+  convertMarkdownButton.addEventListener("click", convertMarkdownToHtml);
   window.notesApi.editor.onPastePlainText(pastePlainText);
   window.notesApi.onContextAction(handleNoteContextAction);
   title.addEventListener("input", () => {

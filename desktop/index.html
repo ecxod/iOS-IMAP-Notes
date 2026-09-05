@@ -16,6 +16,7 @@
   <script defer src="tab-utils.js"></script>
   <script defer src="image-resize.js"></script>
   <script defer src="editor-html.js"></script>
+  <script defer src="markdown-source.js"></script>
   <script defer src="renderer.js"></script>
 </head>
 <body>
@@ -72,6 +73,9 @@
       <input id="note-title" type="text" maxlength="500" aria-label="Note title" placeholder="Note title">
       <span id="note-home"></span>
       <span id="save-state" role="status"></span>
+      <button id="convert-markdown" type="button" class="icon-button markdown-button" title="Convert Markdown to HTML" aria-label="Convert Markdown to HTML">
+        <span class="markdown-icon" aria-hidden="true">MD</span>
+      </button>
       <button id="export-note" type="button" class="icon-button" title="Export Note" aria-label="Export Note">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path d="M12 5h7v7M19 5l-9 9M12 9H5v12h12v-7"></path>

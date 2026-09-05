@@ -8,6 +8,7 @@ const { randomUUID } = require("node:crypto");
 const { updaterErrorMessage } = require("./update-utils");
 const { mergeEncryptedApiKeys, publicApiKeySettings } = require("./secret-settings");
 const { normalizeSentryDsn } = require("./diagnostics-settings");
+const { markdownToHtml } = require("./markdown-utils");
 const {
   destinationAccounts,
   transferNoteSafely,
@@ -1168,6 +1169,13 @@ function registerHandlers() {
     serializeOperation(() => importSharedConversation(event, input))
   ));
   handle("llm:ask", (_event, input) => askLlm(input));
+  handle("markdown:convert", (_event, input) => {
+    const markdown = String(input || "");
+    if (markdown.length > MAX_NOTE_LENGTH) {
+      throw new Error("The Markdown note is too large to convert safely.");
+    }
+    return markdownToHtml(markdown);
+  });
   handle("clipboard:read-text", () => clipboard.readText());
   handle("settings:list", listSettings);
   handle("settings:save", (_event, input) => serializeOperation(() => saveSettings(input)));

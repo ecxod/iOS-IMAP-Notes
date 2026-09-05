@@ -26,6 +26,26 @@ test("editor actions use icon-only buttons with accessible tooltips", async () =
   }
 });
 
+test("editor converts visible Markdown text to safe HTML on demand", async () => {
+  const [html, main, preload, renderer, packageJson] = await Promise.all([
+    readFile(path.join(desktopRoot, "index.html"), "utf8"),
+    readFile(path.join(desktopRoot, "main.js"), "utf8"),
+    readFile(path.join(desktopRoot, "preload.js"), "utf8"),
+    readFile(path.join(desktopRoot, "renderer.js"), "utf8"),
+    readFile(path.join(desktopRoot, "package.json"), "utf8"),
+  ]);
+  assert.match(html, /id="convert-markdown"[^>]*title="Convert Markdown to HTML"/);
+  assert.match(html, /class="markdown-icon"[^>]*>MD<\/span>/);
+  assert.match(html, /markdown-source\.js[\s\S]*renderer\.js/);
+  assert.match(main, /handle\("markdown:convert"[\s\S]*markdownToHtml\(markdown\)/);
+  assert.match(preload, /markdown:[\s\S]*markdown:convert/);
+  assert.match(renderer, /NoteMarkdownSource\.extractMarkdownText\(editable\)/);
+  assert.match(renderer, /sanitizeGeneratedMarkdownHtml\(converted\)/);
+  assert.match(renderer, /editor\.setContents\(safeHtml\)/);
+  assert.match(renderer, /setDirty\(true\)/);
+  assert.match(packageJson, /"markdown-source\.js"/);
+});
+
 test("plain-text paste is offered from the editor context menu instead of the toolbar", async () => {
   const [html, main, preload, renderer] = await Promise.all([
     readFile(path.join(desktopRoot, "index.html"), "utf8"),

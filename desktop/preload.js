@@ -21,6 +21,9 @@ contextBridge.exposeInMainWorld("notesApi", Object.freeze({
   llm: Object.freeze({
     ask: input => ipcRenderer.invoke("llm:ask", input),
   }),
+  markdown: Object.freeze({
+    convert: input => ipcRenderer.invoke("markdown:convert", input),
+  }),
   close: () => ipcRenderer.send("app:close-window"),
   clipboard: Object.freeze({
     readText: () => ipcRenderer.invoke("clipboard:read-text"),

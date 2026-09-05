@@ -77,6 +77,15 @@ button:disabled {
   stroke-linejoin: round;
 }
 
+.markdown-button {
+  font-weight: 800;
+}
+
+.markdown-icon {
+  font-size: 0.72rem;
+  letter-spacing: -0.04em;
+}
+
 .primary {
   border-color: AccentColor;
   background: AccentColor;
