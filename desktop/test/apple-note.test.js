@@ -5,6 +5,7 @@ const {
   extractBody,
   noteId,
   parseAppleNoteSource,
+  renderAppleImages,
   sourceRevision,
 } = require("../apple-note");
 
@@ -95,6 +96,43 @@ test("parses an inline Apple image as editable rich content", async () => {
   assert.equal(note.images[0].contentId, "photo@example");
   assert.equal(note.images[0].contentType, "image/png");
   assert.equal(note.images[0].dataBase64, "iVBORw==");
+});
+
+test("parses and renders an inline cid img even when MIME labels it as an attachment", async () => {
+  const contentId = "photo%2Dtwo%40example";
+  const source = Buffer.from([
+    "From: notes@example.net",
+    "Subject: CID image note",
+    "X-Uniform-Type-Identifier: com.apple.mail-note",
+    "Content-Type: multipart/related; boundary=apple-cid-image-test",
+    "MIME-Version: 1.0",
+    "",
+    "--apple-cid-image-test",
+    "Content-Type: text/html; charset=utf-8",
+    "",
+    `<html><body>Before<img src="cid:${contentId}" alt="Original">After</body></html>`,
+    "--apple-cid-image-test",
+    "Content-Type: image/png; name=photo.png; x-apple-part-url=photo-two@example",
+    "Content-Disposition: attachment; filename=photo.png",
+    "Content-ID: <photo-two@example>",
+    "Content-Transfer-Encoding: base64",
+    "",
+    "iVBORw==",
+    "--apple-cid-image-test--",
+    "",
+  ].join("\r\n"));
+  const note = await parseAppleNoteSource(source, {
+    accountId: "account-1",
+    mailbox: "Notes",
+    uid: 11,
+    uidValidity: 10,
+  });
+  assert.equal(note.readOnly, false);
+  assert.equal(note.images.length, 1);
+  assert.equal(note.images[0].contentId, "photo-two@example");
+  const rendered = renderAppleImages(note.bodyHtml, note.images);
+  assert.match(rendered, /src="data:image\/png;base64,iVBORw=="/);
+  assert.doesNotMatch(rendered, /src="cid:/);
 });
 
 test("round-trips Apple image objects and multipart Content-IDs", async () => {

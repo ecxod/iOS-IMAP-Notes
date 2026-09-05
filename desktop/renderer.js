@@ -63,7 +63,7 @@ function sanitizeHtml(html, preserveAppleObjects = false) {
   for (const object of template.content.querySelectorAll("object")) {
     const data = object.getAttribute("data") || "";
     if (!preserveAppleObjects
-        || object.getAttribute("type") !== "application/x-apple-msg-attachment"
+        || object.getAttribute("type")?.toLowerCase() !== "application/x-apple-msg-attachment"
         || !data.startsWith("cid:")
         || !CONTENT_ID_PATTERN.test(data.slice(4))) {
       object.remove();
@@ -97,6 +97,15 @@ function cleanContentId(value) {
   return CONTENT_ID_PATTERN.test(contentId) ? contentId : "";
 }
 
+function cidContentId(value) {
+  const raw = String(value || "").replace(/^cid:/i, "");
+  try {
+    return cleanContentId(decodeURIComponent(raw));
+  } catch {
+    return cleanContentId(raw);
+  }
+}
+
 function imageMap(note) {
   return new Map((Array.isArray(note?.images) ? note.images : []).map(image => [
     cleanContentId(image.contentId).toLowerCase(),
@@ -128,14 +137,19 @@ function editorHtmlForNote(note) {
   const images = imageMap(note);
   clearManagedImageUrls();
   loadedImageMetadata = [];
-  for (const object of template.content.querySelectorAll("object")) {
-    const data = object.getAttribute("data") || "";
-    const contentId = data.toLowerCase().startsWith("cid:") ? cleanContentId(data.slice(4)) : "";
+  for (const element of template.content.querySelectorAll("object, img[src]")) {
+    const isObject = element.tagName === "OBJECT";
+    const reference = isObject ? element.getAttribute("data") : element.getAttribute("src");
+    const contentId = String(reference || "").toLowerCase().startsWith("cid:")
+      ? cidContentId(reference)
+      : "";
     const image = images.get(contentId.toLowerCase());
-    if (object.getAttribute("type") !== "application/x-apple-msg-attachment" || !image) {
+    if ((isObject
+      && element.getAttribute("type")?.toLowerCase() !== "application/x-apple-msg-attachment")
+      || !image) {
       continue;
     }
-    const img = document.createElement("img");
+    const img = isObject ? document.createElement("img") : element;
     const blob = imageBlobUrl(image);
     img.src = blob.url;
     img.alt = image.filename || "Image";
@@ -152,7 +166,9 @@ function editorHtmlForNote(note) {
       dataBase64: image.dataBase64,
       byteLength: blob.byteLength,
     });
-    object.replaceWith(img);
+    if (isObject) {
+      element.replaceWith(img);
+    }
   }
   return sanitizeHtml(template.innerHTML);
 }

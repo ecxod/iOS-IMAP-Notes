@@ -14,6 +14,7 @@ const IMAGE_CONTENT_TYPES = new Set([
   "image/webp",
 ]);
 const APPLE_OBJECT_PATTERN = /<object\b[^>]*\bdata\s*=\s*(["'])cid:([^"']+)\1[^>]*>(?:[\s\S]*?<\/object\s*>)?/gi;
+const APPLE_CID_IMAGE_PATTERN = /<img\b[^>]*\bsrc\s*=\s*(["'])cid:([^"']+)\1[^>]*>/gi;
 
 function cleanTitle(value, fallback = "New note") {
   const title = String(value || "").trim().slice(0, MAX_TITLE_LENGTH);
@@ -103,10 +104,25 @@ function cleanContentId(value) {
   return contentId && !/[<>\s\r\n]/.test(contentId) ? contentId : "";
 }
 
+function cidContentId(value) {
+  const raw = String(value || "").replace(/^cid:/i, "");
+  try {
+    return cleanContentId(decodeURIComponent(raw));
+  } catch {
+    return cleanContentId(raw);
+  }
+}
+
 function referencedContentIds(bodyHtml) {
   const result = new Set();
   for (const match of String(bodyHtml || "").matchAll(APPLE_OBJECT_PATTERN)) {
-    const contentId = cleanContentId(match[2]);
+    const contentId = cidContentId(match[2]);
+    if (contentId) {
+      result.add(contentId.toLowerCase());
+    }
+  }
+  for (const match of String(bodyHtml || "").matchAll(APPLE_CID_IMAGE_PATTERN)) {
+    const contentId = cidContentId(match[2]);
     if (contentId) {
       result.add(contentId.toLowerCase());
     }
@@ -164,19 +180,30 @@ function validateImageReferences(bodyHtml, images) {
 
 function renderAppleImages(bodyHtml, rawImages) {
   const images = new Map(normalizeImages(rawImages).map(image => [image.contentId.toLowerCase(), image]));
-  return String(bodyHtml || "").replace(APPLE_OBJECT_PATTERN, (object, _quote, rawContentId) => {
-    const image = images.get(cleanContentId(rawContentId).toLowerCase());
+  const imageAttributes = image => {
+    const filename = image.filename.replaceAll("&", "&amp;").replaceAll('"', "&quot;")
+      .replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    return [
+      `src="data:${image.contentType};base64,${image.dataBase64}"`,
+      `alt="${filename}"`,
+      `data-apple-content-id="${image.contentId}"`,
+      `data-apple-content-type="${image.contentType}"`,
+      `data-apple-filename="${filename}"`,
+    ].join(" ");
+  };
+  const objectsRendered = String(bodyHtml || "").replace(APPLE_OBJECT_PATTERN, (object, _quote, rawContentId) => {
+    const image = images.get(cidContentId(rawContentId).toLowerCase());
     if (!image) {
       return object;
     }
-    const attributes = [
-      `src="data:${image.contentType};base64,${image.dataBase64}"`,
-      `alt="${image.filename.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}"`,
-      `data-apple-content-id="${image.contentId}"`,
-      `data-apple-content-type="${image.contentType}"`,
-      `data-apple-filename="${image.filename.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}"`,
-    ];
-    return `<img ${attributes.join(" ")}>`;
+    return `<img ${imageAttributes(image)}>`;
+  });
+  return objectsRendered.replace(APPLE_CID_IMAGE_PATTERN, (tag, _quote, rawContentId) => {
+    const image = images.get(cidContentId(rawContentId).toLowerCase());
+    if (!image) {
+      return tag;
+    }
+    return `<img ${imageAttributes(image)}>`;
   });
 }
 
@@ -206,11 +233,13 @@ async function parseAppleNoteSource(source, metadata) {
   let unsupportedAttachment = false;
   let imageBytes = 0;
   for (const [index, attachment] of mail.attachments.entries()) {
-    const contentId = cleanContentId(attachment.contentId);
+    const typeParameters = attachment.headers?.get("content-type")?.params || {};
+    const contentId = cidContentId(
+      attachment.contentId || attachment.cid || typeParameters["x-apple-part-url"],
+    );
     const contentType = String(attachment.contentType || "").toLowerCase();
-    const inline = String(attachment.contentDisposition || "").toLowerCase() !== "attachment";
     const referenced = contentId && references.has(contentId.toLowerCase());
-    if (!IMAGE_CONTENT_TYPES.has(contentType) || !inline || !referenced) {
+    if (!IMAGE_CONTENT_TYPES.has(contentType) || !referenced) {
       unsupportedAttachment = true;
       continue;
     }
