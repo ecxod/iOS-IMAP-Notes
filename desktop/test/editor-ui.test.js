@@ -8,6 +8,10 @@ const desktopRoot = path.join(__dirname, "..");
 test("editor actions use icon-only buttons with accessible tooltips", async () => {
   const html = await readFile(path.join(desktopRoot, "index.html"), "utf8");
   for (const [id, label] of [
+    ["new-note", "New Note"],
+    ["import-note", "Import Note"],
+    ["sync-notes", "Sync Notes"],
+    ["open-settings", "Settings"],
     ["delete-note", "Delete Note"],
     ["save-note", "Save Note"],
     ["export-note", "Export Note"],
@@ -20,6 +24,21 @@ test("editor actions use icon-only buttons with accessible tooltips", async () =
     assert.match(button, new RegExp(`aria-label="${label}"`));
     assert.doesNotMatch(button.replace(/<svg[\s\S]*<\/svg>/, ""), />\s*[A-Za-z]+\s*</);
   }
+});
+
+test("plain-text paste is offered from the editor context menu instead of the toolbar", async () => {
+  const [html, main, preload, renderer] = await Promise.all([
+    readFile(path.join(desktopRoot, "index.html"), "utf8"),
+    readFile(path.join(desktopRoot, "main.js"), "utf8"),
+    readFile(path.join(desktopRoot, "preload.js"), "utf8"),
+    readFile(path.join(desktopRoot, "renderer.js"), "utf8"),
+  ]);
+  assert.doesNotMatch(html, /id="paste-plain-text"/);
+  assert.match(main, /label: "Paste"[\s\S]*role: "paste"/);
+  assert.match(main, /label: "Paste Plain Text"/);
+  assert.match(preload, /editor:show-context-menu/);
+  assert.match(renderer, /addEventListener\("contextmenu"/);
+  assert.match(renderer, /onPastePlainText\(pastePlainText\)/);
 });
 
 test("the editor bundles and applies Roboto", async () => {

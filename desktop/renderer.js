@@ -31,7 +31,6 @@ const editorArea = document.getElementById("editor-area");
 const saveButton = document.getElementById("save-note");
 const deleteButton = document.getElementById("delete-note");
 const exportButton = document.getElementById("export-note");
-const pastePlainTextButton = document.getElementById("paste-plain-text");
 const searchInput = document.getElementById("note-search");
 const accountFilter = document.getElementById("account-filter");
 const noteHome = document.getElementById("note-home");
@@ -657,7 +656,6 @@ function showSelectedNote(note, { isDirty = false } = {}) {
   title.disabled = Boolean(note.readOnly);
   deleteButton.disabled = false;
   exportButton.disabled = false;
-  pastePlainTextButton.disabled = Boolean(note.readOnly);
   setDirty(isDirty);
   if (note.readOnly) {
     saveState.textContent = note.unsupportedReason
@@ -678,7 +676,6 @@ function showEmptyState({ scope = null } = {}) {
   noteHome.textContent = "";
   deleteButton.disabled = true;
   exportButton.disabled = true;
-  pastePlainTextButton.disabled = true;
   emptyState.hidden = false;
   editorArea.hidden = true;
   emptyStateTitle.textContent = "No note selected";
@@ -1187,8 +1184,14 @@ async function init() {
   saveButton.addEventListener("click", saveNote);
   deleteButton.addEventListener("click", deleteNote);
   exportButton.addEventListener("click", exportNote);
-  pastePlainTextButton.addEventListener("pointerdown", event => event.preventDefault());
-  pastePlainTextButton.addEventListener("click", pastePlainText);
+  editorArea.addEventListener("contextmenu", event => {
+    if (!selected || selected.readOnly || !isEditorTarget(event.target)) {
+      return;
+    }
+    event.preventDefault();
+    window.notesApi.editor.showContextMenu();
+  });
+  window.notesApi.editor.onPastePlainText(pastePlainText);
   title.addEventListener("input", () => {
     if (!selected) {
       return;

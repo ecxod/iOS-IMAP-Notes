@@ -799,6 +799,18 @@ function registerHandlers() {
     serializeOperation(() => importSharedConversation(event, input))
   ));
   handle("clipboard:read-text", () => clipboard.readText());
+  handle("editor:show-context-menu", event => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const menu = Menu.buildFromTemplate([
+      { label: "Paste", role: "paste" },
+      {
+        label: "Paste Plain Text",
+        click: () => event.sender.send("editor:paste-plain-text"),
+      },
+    ]);
+    menu.popup({ window });
+    return true;
+  });
   handle("settings:list", listSettings);
   handle("settings:save", (_event, input) => serializeOperation(() => saveSettings(input)));
   handle("settings:test", (_event, input) => testAccountSettings(input));

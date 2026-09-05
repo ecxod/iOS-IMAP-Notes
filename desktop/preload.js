@@ -16,6 +16,10 @@ contextBridge.exposeInMainWorld("notesApi", Object.freeze({
   clipboard: Object.freeze({
     readText: () => ipcRenderer.invoke("clipboard:read-text"),
   }),
+  editor: Object.freeze({
+    showContextMenu: () => ipcRenderer.invoke("editor:show-context-menu"),
+    onPastePlainText: callback => ipcRenderer.on("editor:paste-plain-text", () => callback()),
+  }),
   settings: Object.freeze({
     list: () => ipcRenderer.invoke("settings:list"),
     save: settings => ipcRenderer.invoke("settings:save", settings),

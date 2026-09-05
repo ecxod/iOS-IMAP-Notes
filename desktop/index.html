@@ -21,10 +21,26 @@
     <header class="sidebar-header">
       <h1>Notes</h1>
       <div class="sidebar-actions">
-        <button id="new-note" type="button">New</button>
-        <button id="import-note" type="button">Import</button>
-        <button id="sync-notes" type="button">Sync</button>
-        <button id="open-settings" type="button">Settings</button>
+        <button id="new-note" type="button" class="icon-button" title="New Note" aria-label="New Note">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M6 3h9l3 3v15H6zM14 3v4h4M12 11v6M9 14h6"></path>
+          </svg>
+        </button>
+        <button id="import-note" type="button" class="icon-button" title="Import Note" aria-label="Import Note">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M4 15v5h16v-5M12 3v12M7 10l5 5 5-5"></path>
+          </svg>
+        </button>
+        <button id="sync-notes" type="button" class="icon-button" title="Sync Notes" aria-label="Sync Notes">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M20 7v5h-5M4 17v-5h5M18.5 10A7 7 0 0 0 6.2 6.5L4 9M5.5 14A7 7 0 0 0 17.8 17.5L20 15"></path>
+          </svg>
+        </button>
+        <button id="open-settings" type="button" class="icon-button" title="Settings" aria-label="Settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM19 12l2-1-2-3-2 .5-1.5-1L15 5h-6l-.5 2.5-1.5 1L5 8l-2 3 2 1v2l-2 1 2 3 2-.5 1.5 1L9 21h6l.5-2.5 1.5-1 2 .5 2-3-2-1z"></path>
+          </svg>
+        </button>
       </div>
     </header>
     <div class="sidebar-tools">
@@ -54,13 +70,6 @@
       <input id="note-title" type="text" maxlength="500" aria-label="Note title" placeholder="Note title">
       <span id="note-home"></span>
       <span id="save-state" role="status"></span>
-      <button
-        id="paste-plain-text"
-        type="button"
-        title="Paste as plain text (Ctrl+Shift+V)"
-        aria-keyshortcuts="Control+Shift+V Meta+Shift+V"
-        disabled
-      >Paste plain text</button>
       <button id="export-note" type="button" class="icon-button" title="Export Note" aria-label="Export Note">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path d="M12 5h7v7M19 5l-9 9M12 9H5v12h12v-7"></path>
