@@ -5,6 +5,7 @@ const { markdownToHtml } = require("./markdown-utils");
 const MAX_PROMPT_LENGTH = 20_000;
 const MAX_NOTE_CONTEXT_LENGTH = 60_000;
 const REQUEST_TIMEOUT = 90_000;
+const VALIDATION_TIMEOUT = 15_000;
 const OPENAI_MODEL = "gpt-5.6-luna";
 const GEMINI_MODEL = "gemini-3.7-flash";
 
@@ -29,12 +30,14 @@ function responseError(providerLabel, response, data) {
       || data?.message
       || "",
   ).replace(/\s+/g, " ").trim().slice(0, 500);
-  return new Error(`${providerLabel} request failed (${response.status})${detail ? `: ${detail}` : "."}`);
+  const error = new Error(`${providerLabel} request failed (${response.status})${detail ? `: ${detail}` : "."}`);
+  error.status = response.status;
+  return error;
 }
 
-async function requestJson(providerLabel, url, options, fetchImpl) {
+async function requestJson(providerLabel, url, options, fetchImpl, timeoutMs = REQUEST_TIMEOUT) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetchImpl(url, { ...options, signal: controller.signal });
     let data = null;
@@ -55,6 +58,29 @@ async function requestJson(providerLabel, url, options, fetchImpl) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function validateApiKey(input, fetchImpl = globalThis.fetch) {
+  const provider = String(input?.provider || "").toLowerCase();
+  const apiKey = String(input?.apiKey || "").trim();
+  if (!["openai", "gemini"].includes(provider)) {
+    throw new Error("Choose Gemini or ChatGPT.");
+  }
+  if (!apiKey) {
+    throw new Error("Enter an API key.");
+  }
+  if (provider === "openai") {
+    await requestJson("ChatGPT", `https://api.openai.com/v1/models/${OPENAI_MODEL}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${apiKey}` },
+    }, fetchImpl, VALIDATION_TIMEOUT);
+    return true;
+  }
+  await requestJson("Gemini", `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}`, {
+    method: "GET",
+    headers: { "x-goog-api-key": apiKey },
+  }, fetchImpl, VALIDATION_TIMEOUT);
+  return true;
 }
 
 function openAiText(data) {
@@ -166,4 +192,5 @@ module.exports = {
   generateNoteReply,
   geminiText,
   openAiText,
+  validateApiKey,
 };

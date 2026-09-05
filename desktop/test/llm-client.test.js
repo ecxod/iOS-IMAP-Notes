@@ -4,6 +4,7 @@ const {
   GEMINI_MODEL,
   OPENAI_MODEL,
   generateNoteReply,
+  validateApiKey,
 } = require("../llm-client");
 
 test("OpenAI Responses request sends note context without persisting the response", async () => {
@@ -98,5 +99,41 @@ test("LLM requests reject missing keys, empty prompts and unsupported providers"
   await assert.rejects(
     generateNoteReply({ provider: "openai", apiKey: "secret", prompt: "" }),
     /Enter a prompt/,
+  );
+});
+
+test("validates provider keys against the configured model without generating content", async () => {
+  const requests = [];
+  const fetchImpl = async (url, options) => {
+    requests.push({ url, options });
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return { id: "model", object: "model" };
+      },
+    };
+  };
+  await validateApiKey({ provider: "openai", apiKey: "openai-key" }, fetchImpl);
+  await validateApiKey({ provider: "gemini", apiKey: "gemini-key" }, fetchImpl);
+
+  assert.equal(requests[0].url, `https://api.openai.com/v1/models/${OPENAI_MODEL}`);
+  assert.equal(requests[0].options.method, "GET");
+  assert.equal(requests[0].options.headers.Authorization, "Bearer openai-key");
+  assert.equal(requests[1].url, `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}`);
+  assert.equal(requests[1].options.method, "GET");
+  assert.equal(requests[1].options.headers["x-goog-api-key"], "gemini-key");
+});
+
+test("retains the provider status when API key validation is rejected", async () => {
+  await assert.rejects(
+    validateApiKey({ provider: "openai", apiKey: "bad" }, async () => ({
+      ok: false,
+      status: 401,
+      async json() {
+        return { error: { message: "Incorrect API key" } };
+      },
+    })),
+    error => error.status === 401 && /Incorrect API key/.test(error.message),
   );
 });

@@ -554,6 +554,22 @@ dialog form {
   color: FieldText;
 }
 
+.api-key-settings input.has-valid-secret {
+  border-color: #287c3e;
+  background: color-mix(in srgb, #287c3e 10%, Field);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #287c3e 35%, transparent);
+}
+
+.api-key-settings input.has-valid-secret::placeholder {
+  color: color-mix(in srgb, #287c3e 82%, FieldText);
+  opacity: 1;
+}
+
+.api-key-settings input.has-pending-secret {
+  border-color: #a55000;
+  background: color-mix(in srgb, #f5a623 10%, Field);
+}
+
 .new-note-folder-copy {
   margin: -0.48rem 0 0;
   opacity: 0.68;
@@ -752,11 +768,6 @@ dialog form {
 
   .ai-provider-card {
     grid-template-columns: 4.8rem 1fr;
-  }
-
-  .ai-provider-card label:nth-of-type(2),
-  .ai-provider-card button {
-    grid-column: 2;
   }
 
   #note-home {

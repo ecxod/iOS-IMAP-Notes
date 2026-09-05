@@ -778,6 +778,11 @@ async function submitAiPrompt() {
     setStatus(aiState, "Inserted at the cursor position. Save the note to keep it.", "success");
   } catch (error) {
     setStatus(aiState, errorText(error));
+    try {
+      await loadSettings();
+    } catch {
+      // Keep the provider error visible if settings cannot be refreshed.
+    }
   } finally {
     aiProvider.disabled = false;
     aiPrompt.disabled = false;
@@ -1010,6 +1015,25 @@ function renderAccountChoices() {
     : "all";
 }
 
+function updateApiKeyVisualState(input) {
+  const hasCandidate = Boolean(input.value.trim());
+  const hasValidStoredKey = input.dataset.hasStoredKey === "true" && !hasCandidate;
+  input.classList.toggle("has-valid-secret", hasValidStoredKey);
+  input.classList.toggle("has-pending-secret", hasCandidate);
+  input.placeholder = hasValidStoredKey ? "••••••••  Valid" : "Enter API key";
+  input.title = hasCandidate
+    ? "This API key will be validated when settings are saved"
+    : hasValidStoredKey
+      ? "A valid API key is stored"
+      : "No valid API key is stored";
+}
+
+function showStoredApiKeyState(input, hasStoredKey) {
+  input.value = "";
+  input.dataset.hasStoredKey = String(Boolean(hasStoredKey));
+  updateApiKeyVisualState(input);
+}
+
 async function loadSettings() {
   const settings = await window.notesApi.settings.list();
   accounts = settings.accounts;
@@ -1017,14 +1041,8 @@ async function loadSettings() {
   for (const element of document.querySelectorAll(".credential-protection-copy")) {
     element.textContent = settings.credentialProtection;
   }
-  openAiApiKey.value = "";
-  openAiApiKey.placeholder = settings.llm?.hasOpenAiApiKey
-    ? "Stored — leave blank to keep"
-    : "Enter API key";
-  geminiApiKey.value = "";
-  geminiApiKey.placeholder = settings.llm?.hasGeminiApiKey
-    ? "Stored — leave blank to keep"
-    : "Enter API key";
+  showStoredApiKeyState(openAiApiKey, settings.llm?.hasOpenAiApiKey);
+  showStoredApiKeyState(geminiApiKey, settings.llm?.hasGeminiApiKey);
   configureAiProviders(settings.llm);
   renderAccountChoices();
   renderList();
@@ -1360,7 +1378,11 @@ async function saveSettings() {
     settingsDialog.close("save");
     await syncNotes();
   } catch (error) {
-    setSettingsState(errorText(error));
+    const message = errorText(error);
+    if (message.includes("API key validation failed")) {
+      await loadSettings();
+    }
+    setSettingsState(message);
   }
 }
 
@@ -1400,6 +1422,8 @@ async function init() {
     }
     scheduleSearchHighlights();
   };
+  openAiApiKey.addEventListener("input", () => updateApiKeyVisualState(openAiApiKey));
+  geminiApiKey.addEventListener("input", () => updateApiKeyVisualState(geminiApiKey));
   document.addEventListener("selectionchange", rememberEditorInsertionPoint);
   aiProvider.addEventListener("change", updateAiPromptPlaceholder);
   aiPrompt.addEventListener("input", resizeAiPrompt);

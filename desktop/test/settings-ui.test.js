@@ -8,18 +8,28 @@ const desktopRoot = path.join(__dirname, "..");
 test("settings offer masked OpenAI and Gemini API key inputs", async () => {
   const html = await readFile(path.join(desktopRoot, "index.html"), "utf8");
   for (const [id, label] of [
-    ["openai-api-key", "OpenAI API key"],
-    ["gemini-api-key", "API key"],
+    ["openai-api-key", "ChatGPT API key"],
+    ["gemini-api-key", "Gemini API key"],
   ]) {
-    assert.match(html, new RegExp(`${label}[\\s\\S]*<input id="${id}"[^>]*type="password"`));
+    assert.match(html, new RegExp(`<input id="${id}"[^>]*type="password"[^>]*aria-label="${label}"`));
   }
+  assert.doesNotMatch(html, /<label>\s*(?:OpenAI )?API key/);
 });
 
 test("renderer submits API keys without receiving stored plaintext", async () => {
-  const renderer = await readFile(path.join(desktopRoot, "renderer.js"), "utf8");
+  const [renderer, styles] = await Promise.all([
+    readFile(path.join(desktopRoot, "renderer.js"), "utf8"),
+    readFile(path.join(desktopRoot, "styles.css"), "utf8"),
+  ]);
   assert.match(renderer, /llm:\s*{\s*openaiApiKey: openAiApiKey\.value,\s*geminiApiKey: geminiApiKey\.value/);
   assert.match(renderer, /settings\.llm\?\.hasOpenAiApiKey/);
   assert.match(renderer, /settings\.llm\?\.hasGeminiApiKey/);
+  assert.match(renderer, /input\.placeholder = hasValidStoredKey \? "••••••••  Valid" : "Enter API key"/);
+  assert.match(renderer, /classList\.toggle\("has-valid-secret", hasValidStoredKey\)/);
+  assert.match(renderer, /classList\.toggle\("has-pending-secret", hasCandidate\)/);
+  assert.match(renderer, /message\.includes\("API key validation failed"\)[\s\S]*await loadSettings\(\)/);
+  assert.match(styles, /input\.has-valid-secret\s*{[^}]*border-color:\s*#287c3e/s);
+  assert.match(styles, /input\.has-pending-secret\s*{[^}]*border-color:\s*#a55000/s);
 });
 
 test("editor shows a growing AI prompt bar only for configured providers", async () => {
@@ -34,6 +44,7 @@ test("editor shows a growing AI prompt bar only for configured providers", async
   assert.match(renderer, /llmSettings\?\.hasGeminiApiKey/);
   assert.match(renderer, /llmSettings\?\.hasOpenAiApiKey/);
   assert.match(renderer, /notesApi\.llm\.ask/);
+  assert.match(renderer, /setStatus\(aiState, errorText\(error\)\);[\s\S]*await loadSettings\(\)/);
   assert.match(renderer, /restoreEditorInsertionPoint\(requestedRange\)/);
   assert.match(renderer, /editor\.insertHTML\(aiExchangeHtml/);
   assert.match(renderer, /sanitizeGeneratedMarkdownHtml\(responseHtml\)/);

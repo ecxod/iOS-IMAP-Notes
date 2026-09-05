@@ -17,7 +17,7 @@ const {
 const { commitConversationVersion, readConversationState } = require("./conversation-history");
 const { fetchSharedConversation } = require("./shared-conversation-fetcher");
 const { commonSpellcheckLanguages, resolveSpellcheckSettings } = require("./spellcheck-utils");
-const { generateNoteReply } = require("./llm-client");
+const { generateNoteReply, validateApiKey } = require("./llm-client");
 const {
   MAX_IMAGE_BYTES,
   MAX_NOTE_LENGTH,
@@ -39,6 +39,7 @@ const SPELLCHECK_SETTINGS_VERSION = 1;
 const NOTES_VERSION = 2;
 let operationQueue = Promise.resolve();
 let notesCache = null;
+const legacyApiKeyValidationAttempts = new Set();
 let updateState = {
   status: "idle",
   currentVersion: app.getVersion(),
@@ -523,13 +524,21 @@ async function askLlm(input) {
     cipher,
     `No ${provider === "gemini" ? "Gemini" : "OpenAI"} API key is stored.`,
   );
-  return generateNoteReply({
-    provider,
-    apiKey,
-    prompt: input?.prompt,
-    title: cleanTitle(input?.title),
-    noteText: htmlToSearchText(String(input?.bodyHtml || "")),
-  });
+  try {
+    return await generateNoteReply({
+      provider,
+      apiKey,
+      prompt: input?.prompt,
+      title: cleanTitle(input?.title),
+      noteText: htmlToSearchText(String(input?.bodyHtml || "")),
+    });
+  } catch (error) {
+    if ([401, 403].includes(error?.status)
+        || (error?.status === 400 && /api key[^.]*?(?:invalid|not valid)/i.test(error.message))) {
+      await setStoredApiKeyValidity(provider, false);
+    }
+    throw error;
+  }
 }
 
 function credentialProtection() {
@@ -545,8 +554,62 @@ function credentialProtection() {
     : backend;
 }
 
-async function listSettings() {
+function apiKeySettingFields(provider) {
+  return provider === "gemini"
+    ? { cipher: "geminiApiKeyCipher", valid: "geminiApiKeyValid" }
+    : { cipher: "openaiApiKeyCipher", valid: "openaiApiKeyValid" };
+}
+
+async function setStoredApiKeyValidity(provider, valid) {
   const settings = await readSettingsRaw();
+  const fields = apiKeySettingFields(provider);
+  if (!settings.llm[fields.cipher] || settings.llm[fields.valid] === valid) {
+    return settings;
+  }
+  settings.llm[fields.valid] = valid;
+  await writeJson(settingsFile(), settings);
+  return settings;
+}
+
+async function validateLegacyApiKeys(settings) {
+  let changed = false;
+  await Promise.all(["openai", "gemini"].map(async provider => {
+    const fields = apiKeySettingFields(provider);
+    if (!settings.llm[fields.cipher]
+        || typeof settings.llm[fields.valid] === "boolean"
+        || legacyApiKeyValidationAttempts.has(provider)) {
+      return;
+    }
+    legacyApiKeyValidationAttempts.add(provider);
+    let apiKey;
+    try {
+      apiKey = await decryptSecret(settings.llm[fields.cipher], "No API key is stored.");
+    } catch {
+      settings.llm[fields.valid] = false;
+      changed = true;
+      return;
+    }
+    let valid;
+    try {
+      await validateApiKey({ provider, apiKey });
+      valid = true;
+    } catch (error) {
+      if (![400, 401, 403, 404].includes(error?.status)) {
+        return;
+      }
+      valid = false;
+    }
+    settings.llm[fields.valid] = valid;
+    changed = true;
+  }));
+  if (changed) {
+    await writeJson(settingsFile(), settings);
+  }
+  return settings;
+}
+
+async function listSettings() {
+  const settings = await validateLegacyApiKeys(await readSettingsRaw());
   return {
     accounts: settings.accounts.map(publicAccount),
     llm: publicApiKeySettings(settings),
@@ -584,7 +647,19 @@ async function saveSettings(input) {
   for (const item of mailboxesToEnsure) {
     await ensureMailbox(item.account, item.password);
   }
-  const llm = await mergeEncryptedApiKeys(existing, input?.llm, encryptSecret);
+  const llm = await mergeEncryptedApiKeys(
+    existing,
+    input?.llm,
+    encryptSecret,
+    async (provider, apiKey) => {
+      const label = provider === "gemini" ? "Gemini" : "ChatGPT";
+      try {
+        await validateApiKey({ provider, apiKey });
+      } catch (error) {
+        throw new Error(`${label} API key validation failed: ${error.message}`);
+      }
+    },
+  );
   await writeJson(settingsFile(), { version: SETTINGS_VERSION, accounts, llm });
   return listSettings();
 }
