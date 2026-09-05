@@ -50,3 +50,9 @@ test("the editor bundles and applies Roboto", async () => {
   assert.match(css, /#editor-area \.sun-editor-editable\s*{\s*font-family: "Roboto", Arial, sans-serif;/);
   assert.match(license, /SIL OPEN FONT LICENSE/);
 });
+
+test("the editable note shows a high-contrast text caret and focus boundary", async () => {
+  const css = await readFile(path.join(desktopRoot, "styles.css"), "utf8");
+  assert.match(css, /\.sun-editor-editable\[contenteditable="true"\]:not\(\.se-read-only\)\s*{[^}]*caret-color:\s*#0067c0/s);
+  assert.match(css, /\.sun-editor-editable\[contenteditable="true"\]:not\(\.se-read-only\):focus\s*{[^}]*outline:/s);
+});

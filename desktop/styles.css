@@ -383,6 +383,17 @@ button:disabled {
   font-family: "Roboto", Arial, sans-serif;
 }
 
+#editor-area .sun-editor-editable[contenteditable="true"]:not(.se-read-only) {
+  caret-color: #0067c0;
+  cursor: text;
+  user-select: text;
+}
+
+#editor-area .sun-editor-editable[contenteditable="true"]:not(.se-read-only):focus {
+  outline: 1px solid color-mix(in srgb, #0067c0 55%, transparent);
+  outline-offset: -1px;
+}
+
 #editor-area .se-container {
   min-height: 0;
   height: calc(100% - 1px);
