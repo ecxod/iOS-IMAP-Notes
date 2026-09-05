@@ -110,7 +110,15 @@
         Save in
         <select id="new-note-home"></select>
       </label>
-      <p id="new-note-folder"></p>
+      <p id="new-note-folder" class="new-note-folder-copy"></p>
+      <label>
+        Gemini / ChatGPT link
+        <span class="conversation-link-row">
+          <input id="new-note-share-link" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://share.gemini.google/… or https://chatgpt.com/share/…">
+          <button id="import-conversation-link" type="button">Import / update</button>
+        </span>
+      </label>
+      <p id="new-note-state" role="status"></p>
       <footer class="dialog-actions">
         <button value="cancel" type="submit" formnovalidate>Cancel</button>
         <button value="create" type="submit" class="primary">Create</button>
@@ -131,10 +139,6 @@
       <section class="api-key-settings" aria-labelledby="api-key-settings-title">
         <div class="api-key-heading">
           <h3 id="api-key-settings-title">AI providers</h3>
-          <label class="conversation-import-home-label">
-            New imports
-            <select id="conversation-import-home"></select>
-          </label>
         </div>
         <div class="api-key-grid">
           <section class="ai-provider-card">
@@ -143,11 +147,6 @@
               OpenAI API key
               <input id="openai-api-key" type="password" autocomplete="new-password" spellcheck="false" placeholder="Enter API key">
             </label>
-            <label>
-              Public conversation link
-              <input id="chatgpt-share-link" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://chatgpt.com/share/…">
-            </label>
-            <button id="import-chatgpt-link" type="button">Import / update</button>
           </section>
           <section class="ai-provider-card">
             <strong>Gemini</strong>
@@ -155,14 +154,8 @@
               API key
               <input id="gemini-api-key" type="password" autocomplete="new-password" spellcheck="false" placeholder="Enter API key">
             </label>
-            <label>
-              Public conversation link
-              <input id="gemini-share-link" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://share.gemini.google/…">
-            </label>
-            <button id="import-gemini-link" type="button">Import / update</button>
           </section>
         </div>
-        <p>Imports synchronize only prompts and answers; page metadata is ignored. Save a newly added account before importing into it.</p>
       </section>
       <p id="settings-state" role="status"></p>
       <footer class="dialog-actions">

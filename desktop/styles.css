@@ -474,7 +474,7 @@ dialog form {
 
 #new-note-dialog form {
   min-width: min(86vw, 420px);
-  gap: 1rem;
+  gap: 0.65rem;
   padding: 1rem;
 }
 
@@ -487,6 +487,7 @@ dialog form {
 }
 
 #new-note-dialog select,
+#new-note-dialog input,
 .account-card input,
 .account-card select,
 .api-key-settings input,
@@ -497,6 +498,30 @@ dialog form {
   border-radius: 0.35rem;
   background: Field;
   color: FieldText;
+}
+
+.new-note-folder-copy {
+  margin: -0.48rem 0 0;
+  opacity: 0.68;
+  font-size: 0.68rem;
+  line-height: 1.25;
+}
+
+.conversation-link-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+}
+
+#new-note-state {
+  min-height: 1rem;
+  margin: -0.25rem 0 0;
+  color: #b00020;
+  font-size: 0.75rem;
+}
+
+#new-note-state[data-state="working"] {
+  color: CanvasText;
 }
 
 .dialog-header,
@@ -571,7 +596,7 @@ dialog form {
 
 .ai-provider-card {
   display: grid;
-  grid-template-columns: 4.8rem minmax(10rem, 0.85fr) minmax(16rem, 1.4fr) auto;
+  grid-template-columns: 4.8rem minmax(10rem, 1fr);
   align-items: end;
   gap: 0.45rem;
   padding: 0.4rem;
@@ -582,12 +607,6 @@ dialog form {
 .ai-provider-card strong {
   align-self: center;
   font-size: 0.84rem;
-}
-
-.conversation-import-home-label {
-  grid-template-columns: auto minmax(10rem, 15rem);
-  align-items: center;
-  white-space: nowrap;
 }
 
 .account-card {

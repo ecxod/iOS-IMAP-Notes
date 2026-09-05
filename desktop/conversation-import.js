@@ -47,6 +47,18 @@ function parseSharedUrl(rawUrl, expectedProvider) {
   return { provider, shareId: match[1], url: url.href };
 }
 
+function providerForSharedUrl(rawUrl) {
+  for (const provider of Object.keys(PROVIDERS)) {
+    try {
+      parseSharedUrl(rawUrl, provider);
+      return provider;
+    } catch {
+      // Try the next supported provider.
+    }
+  }
+  throw new Error("Enter a supported public Gemini or ChatGPT conversation link.");
+}
+
 function normalizeTurn(value, index) {
   const role = value?.role === "user" ? "user" : value?.role === "assistant" ? "assistant" : "";
   const text = String(value?.text || "").replace(/\r\n?/g, "\n").trim();
@@ -198,6 +210,7 @@ module.exports = {
   mergeConversation,
   normalizeConversation,
   parseSharedUrl,
+  providerForSharedUrl,
   renderConversation,
   renderTurns,
 };

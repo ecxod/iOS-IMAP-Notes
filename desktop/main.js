@@ -11,6 +11,7 @@ const {
   conversationSimilarity,
   isLikelyContinuation,
   mergeConversation,
+  providerForSharedUrl,
   renderConversation,
 } = require("./conversation-import");
 const { commitConversationVersion, readConversationState } = require("./conversation-history");
@@ -622,7 +623,7 @@ async function recordImportedConversation(note, remote, message) {
 }
 
 async function importSharedConversation(event, input) {
-  const provider = String(input?.provider || "").toLowerCase();
+  const provider = providerForSharedUrl(input?.url);
   const remote = await fetchSharedConversation(BrowserWindow, input?.url, provider);
   const candidates = await conversationCandidates(remote);
   let candidate = candidates.find(item => item.exactShare) || null;

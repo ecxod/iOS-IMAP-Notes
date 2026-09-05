@@ -37,16 +37,14 @@ const noteHome = document.getElementById("note-home");
 const newNoteDialog = document.getElementById("new-note-dialog");
 const newNoteHome = document.getElementById("new-note-home");
 const newNoteFolder = document.getElementById("new-note-folder");
+const newNoteShareLink = document.getElementById("new-note-share-link");
+const newNoteState = document.getElementById("new-note-state");
+const importConversationLinkButton = document.getElementById("import-conversation-link");
 const settingsDialog = document.getElementById("settings-dialog");
 const settingsState = document.getElementById("settings-state");
 const accountList = document.getElementById("account-list");
 const openAiApiKey = document.getElementById("openai-api-key");
 const geminiApiKey = document.getElementById("gemini-api-key");
-const chatGptShareLink = document.getElementById("chatgpt-share-link");
-const geminiShareLink = document.getElementById("gemini-share-link");
-const importChatGptLinkButton = document.getElementById("import-chatgpt-link");
-const importGeminiLinkButton = document.getElementById("import-gemini-link");
-const conversationImportHome = document.getElementById("conversation-import-home");
 const appVersion = document.getElementById("app-version");
 const updateStateText = document.getElementById("update-state");
 const checkUpdatesButton = document.getElementById("check-updates");
@@ -823,27 +821,20 @@ async function reconcileCleanTabs() {
 
 function renderAccountChoices() {
   const currentFilter = accountFilter.value;
-  const currentImportHome = conversationImportHome.value;
   accountFilter.replaceChildren(
     new Option("All accounts", "all"),
     new Option("Local notes", "local"),
   );
   newNoteHome.replaceChildren(new Option("Local notes", "local"));
-  conversationImportHome.replaceChildren(new Option("Local notes", "local"));
   for (const account of accounts) {
     accountFilter.add(new Option(account.name, account.id));
     if (account.enabled) {
       newNoteHome.add(new Option(`${account.name} — ${account.mailbox}`, account.id));
-      conversationImportHome.add(new Option(`${account.name} — ${account.mailbox}`, account.id));
     }
   }
   accountFilter.value = [...accountFilter.options].some(option => option.value === currentFilter)
     ? currentFilter
     : "all";
-  conversationImportHome.value = [...conversationImportHome.options]
-    .some(option => option.value === currentImportHome)
-    ? currentImportHome
-    : "local";
 }
 
 async function loadSettings() {
@@ -904,6 +895,9 @@ function openNewNoteDialog(input = null) {
     || accounts.filter(account => account.enabled).length === 1 && accounts.find(account => account.enabled);
   newNoteHome.value = defaultAccount?.id || "local";
   updateNewNoteFolder();
+  newNoteShareLink.value = "";
+  newNoteState.textContent = "";
+  newNoteState.removeAttribute("data-state");
   newNoteDialog.showModal();
 }
 
@@ -1096,45 +1090,55 @@ async function openSettings() {
   settingsDialog.showModal();
 }
 
-function setSettingsState(message, state = "error") {
-  settingsState.textContent = message;
-  settingsState.dataset.state = state;
+function setStatus(element, message, state = "error") {
+  element.textContent = message;
+  element.dataset.state = state;
 }
 
-async function importSharedConversation(provider) {
+function setSettingsState(message, state = "error") {
+  setStatus(settingsState, message, state);
+}
+
+function conversationProviderLabel(rawUrl) {
+  try {
+    return new URL(rawUrl).hostname.toLowerCase().includes("gemini") ? "Gemini" : "ChatGPT";
+  } catch {
+    return "Gemini / ChatGPT";
+  }
+}
+
+async function importSharedConversation() {
   if (!captureActiveTab()) {
-    return;
+    return false;
   }
   if (openTabs.some(tab => tab.dirty)) {
-    setSettingsState("Save all open note changes before importing a conversation.");
-    return;
+    setStatus(newNoteState, "Save all open note changes before importing a conversation.");
+    return false;
   }
-  const input = provider === "gemini" ? geminiShareLink : chatGptShareLink;
-  if (!input.value.trim()) {
-    setSettingsState(`Enter a public ${provider === "gemini" ? "Gemini" : "ChatGPT"} conversation link.`);
-    input.focus();
-    return;
+  const url = newNoteShareLink.value.trim();
+  if (!url) {
+    setStatus(newNoteState, "Enter a public Gemini or ChatGPT conversation link.");
+    newNoteShareLink.focus();
+    return false;
   }
-  if (!input.reportValidity()) {
-    return;
+  if (!newNoteShareLink.reportValidity()) {
+    return false;
   }
-  const providerLabel = provider === "gemini" ? "Gemini" : "ChatGPT";
-  importChatGptLinkButton.disabled = true;
-  importGeminiLinkButton.disabled = true;
-  setSettingsState(`Loading the public ${providerLabel} conversation…`, "working");
+  const providerLabel = conversationProviderLabel(url);
+  importConversationLinkButton.disabled = true;
+  setStatus(newNoteState, `Loading the public ${providerLabel} conversation…`, "working");
   try {
     const result = await window.notesApi.conversations.import({
-      provider,
-      url: input.value,
-      accountId: conversationImportHome.value,
+      url,
+      accountId: newNoteHome.value,
     });
     if (result.status === "canceled") {
-      setSettingsState("Import canceled.", "working");
-      return;
+      setStatus(newNoteState, "Import canceled.", "working");
+      return false;
     }
     if (result.status === "conflict") {
-      setSettingsState(`${result.message} Note: “${result.note.title}”.`);
-      return;
+      setStatus(newNoteState, `${result.message} Note: “${result.note.title}”.`);
+      return false;
     }
     await refreshNotes();
     await reconcileCleanTabs();
@@ -1142,7 +1146,7 @@ async function importSharedConversation(provider) {
     if (imported) {
       openNoteInTab(imported);
     }
-    input.value = "";
+    newNoteShareLink.value = "";
     const action = result.status === "created" ? "created" : "updated";
     const additions = result.status === "updated"
       ? ` ${result.appendedTurns} new prompt/answer block${result.appendedTurns === 1 ? "" : "s"} appended.`
@@ -1153,15 +1157,13 @@ async function importSharedConversation(provider) {
         ? ` Git ${result.history.oid.slice(0, 8)} in ${result.history.root}.`
         : "";
     const saveWarning = result.warning ? ` ${result.warning}` : "";
-    setSettingsState(
-      `${providerLabel} note ${action}.${additions}${saveWarning}${history}`,
-      result.history?.warning || result.warning ? "error" : "success",
-    );
+    syncState.textContent = `${providerLabel} note ${action}.${additions}${saveWarning}${history}`;
+    return true;
   } catch (error) {
-    setSettingsState(errorText(error));
+    setStatus(newNoteState, errorText(error));
+    return false;
   } finally {
-    importChatGptLinkButton.disabled = false;
-    importGeminiLinkButton.disabled = false;
+    importConversationLinkButton.disabled = false;
   }
 }
 
@@ -1233,8 +1235,13 @@ async function init() {
   updateAppButton.addEventListener("click", useUpdateButton);
   closeAppButton.addEventListener("click", closeApplication);
   document.getElementById("add-account").addEventListener("click", () => addAccountCard());
-  importChatGptLinkButton.addEventListener("click", () => importSharedConversation("chatgpt"));
-  importGeminiLinkButton.addEventListener("click", () => importSharedConversation("gemini"));
+  importConversationLinkButton.addEventListener("click", () => {
+    importSharedConversation().then(imported => {
+      if (imported) {
+        newNoteDialog.close("import");
+      }
+    });
+  });
   saveButton.addEventListener("click", saveNote);
   deleteButton.addEventListener("click", deleteNote);
   exportButton.addEventListener("click", exportNote);

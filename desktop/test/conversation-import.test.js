@@ -7,8 +7,18 @@ const {
   isLikelyContinuation,
   mergeConversation,
   normalizeConversation,
+  providerForSharedUrl,
   renderConversation,
 } = require("../conversation-import");
+
+test("detects the provider from a supported public share link", () => {
+  assert.equal(providerForSharedUrl("https://share.gemini.google/example"), "gemini");
+  assert.equal(providerForSharedUrl("https://chatgpt.com/share/example"), "chatgpt");
+  assert.throws(
+    () => providerForSharedUrl("https://example.com/share/example"),
+    /supported public Gemini or ChatGPT/,
+  );
+});
 
 function sharedConversation({
   provider = "gemini",

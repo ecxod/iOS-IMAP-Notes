@@ -22,24 +22,25 @@ test("renderer submits API keys without receiving stored plaintext", async () =>
   assert.match(renderer, /settings\.llm\?\.hasGeminiApiKey/);
 });
 
-test("settings provide desktop-only public-link import controls", async () => {
+test("new note dialog provides desktop-only public-link import controls", async () => {
   const [html, preload, renderer] = await Promise.all([
     readFile(path.join(desktopRoot, "index.html"), "utf8"),
     readFile(path.join(desktopRoot, "preload.js"), "utf8"),
     readFile(path.join(desktopRoot, "renderer.js"), "utf8"),
   ]);
   for (const id of [
-    "chatgpt-share-link",
-    "gemini-share-link",
-    "import-chatgpt-link",
-    "import-gemini-link",
-    "conversation-import-home",
+    "new-note-home",
+    "new-note-share-link",
+    "import-conversation-link",
   ]) {
     assert.match(html, new RegExp(`id="${id}"`));
   }
-  assert.match(html, /synchronize only prompts and answers/);
+  for (const removedId of ["chatgpt-share-link", "gemini-share-link", "conversation-import-home"]) {
+    assert.doesNotMatch(html, new RegExp(`id="${removedId}"`));
+  }
   assert.match(preload, /conversations:import/);
   assert.match(renderer, /notesApi\.conversations\.import/);
+  assert.match(renderer, /accountId: newNoteHome\.value/);
 });
 
 test("settings use compact account and provider rows", async () => {
@@ -48,4 +49,5 @@ test("settings use compact account and provider rows", async () => {
   assert.match(styles, /#account-list:not\(:empty\)\s*{[^}]*min-height/s);
   assert.match(styles, /\.account-grid\s*{[^}]*grid-template-columns:[^;}]*minmax\(8rem/s);
   assert.match(styles, /\.ai-provider-card\s*{[^}]*grid-template-columns:[^;}]*4\.8rem/s);
+  assert.match(styles, /\.new-note-folder-copy\s*{[^}]*font-size:\s*0\.68rem/s);
 });
