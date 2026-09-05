@@ -1,4 +1,25 @@
 const { createHash, randomUUID } = require("node:crypto");
+const sanitizeHtml = require("sanitize-html");
+
+const TURN_HTML_OPTIONS = Object.freeze({
+  allowedTags: [
+    "a", "b", "blockquote", "br", "code", "del", "div", "em", "h1", "h2", "h3",
+    "h4", "h5", "h6", "hr", "i", "li", "ol", "p", "pre", "s", "span", "strong",
+    "table", "tbody", "td", "th", "thead", "tr", "ul",
+  ],
+  allowedAttributes: {
+    a: ["href", "title"],
+    code: ["class"],
+    ol: ["start"],
+    td: ["align"],
+    th: ["align"],
+  },
+  allowedClasses: {
+    code: [/^language-[a-z0-9_-]+$/i],
+  },
+  allowedSchemes: ["http", "https", "mailto"],
+  allowProtocolRelative: false,
+});
 
 const PROVIDERS = Object.freeze({
   chatgpt: {
@@ -66,12 +87,26 @@ function normalizeTurn(value, index) {
     return null;
   }
   const contentHash = hash(`${role}\n${text.normalize("NFKC")}`);
-  return {
+  const normalized = {
     id: String(value.id || `${index}-${contentHash.slice(0, 16)}`),
     role,
     text,
     hash: contentHash,
   };
+  const html = sanitizeTurnHtml(value?.html);
+  if (html) {
+    normalized.html = html;
+  }
+  return normalized;
+}
+
+function sanitizeTurnHtml(value) {
+  return sanitizeHtml(String(value || ""), {
+    ...TURN_HTML_OPTIONS,
+    exclusiveFilter(frame) {
+      return frame.tag === "a" && !frame.attribs.href;
+    },
+  }).trim();
 }
 
 function normalizeConversation(value) {
@@ -107,7 +142,7 @@ function renderTurns(turns) {
   return turns.map(turn => (
     `<section data-conversation-turn="${escapeHtml(turn.hash)}">`
       + `<h3>${turn.role === "user" ? "You" : "Assistant"}</h3>`
-      + `<div>${textHtml(turn.text)}</div>`
+      + `<div>${turn.html || textHtml(turn.text)}</div>`
       + "</section>"
   )).join("\n");
 }
@@ -213,4 +248,5 @@ module.exports = {
   providerForSharedUrl,
   renderConversation,
   renderTurns,
+  sanitizeTurnHtml,
 };

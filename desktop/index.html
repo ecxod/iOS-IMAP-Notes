@@ -157,6 +157,14 @@
           </section>
         </div>
       </section>
+      <section class="diagnostics-settings" aria-labelledby="diagnostics-settings-title">
+        <h3 id="diagnostics-settings-title">Diagnostics</h3>
+        <div class="diagnostics-row">
+          <strong>Sentry DSN</strong>
+          <input id="sentry-dsn" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://public-key@sentry.example/project-id" aria-label="Sentry DSN">
+          <button id="open-dev-tools" type="button" title="Open the browser console and developer tools">Open developer tools</button>
+        </div>
+      </section>
       <p id="settings-state" role="status"></p>
       <footer class="dialog-actions">
         <button value="cancel" type="submit" formnovalidate>Cancel</button>

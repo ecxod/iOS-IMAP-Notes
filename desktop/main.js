@@ -1,10 +1,12 @@
 const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, safeStorage } = require("electron");
+const Sentry = require("@sentry/electron/main");
 const { autoUpdater } = require("electron-updater");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const { updaterErrorMessage } = require("./update-utils");
 const { mergeEncryptedApiKeys, publicApiKeySettings } = require("./secret-settings");
+const { normalizeSentryDsn } = require("./diagnostics-settings");
 const {
   conversationMetadata,
   conversationNoteTitle,
@@ -39,6 +41,7 @@ const SPELLCHECK_SETTINGS_VERSION = 1;
 const NOTES_VERSION = 2;
 let operationQueue = Promise.resolve();
 let notesCache = null;
+let activeSentryDsn = "";
 const legacyApiKeyValidationAttempts = new Set();
 let updateState = {
   status: "idle",
@@ -463,7 +466,29 @@ async function readSettingsRaw() {
     version: SETTINGS_VERSION,
     accounts: Array.isArray(data?.accounts) ? data.accounts : [],
     llm: data?.llm && typeof data.llm === "object" ? data.llm : {},
+    diagnostics: data?.diagnostics && typeof data.diagnostics === "object"
+      ? { sentryDsn: String(data.diagnostics.sentryDsn || "") }
+      : { sentryDsn: "" },
   };
+}
+
+async function configureSentry(rawDsn) {
+  const dsn = normalizeSentryDsn(rawDsn);
+  if (dsn === activeSentryDsn) {
+    return;
+  }
+  if (activeSentryDsn) {
+    await Sentry.close(2_000);
+  }
+  activeSentryDsn = dsn;
+  if (dsn) {
+    Sentry.init({
+      dsn,
+      release: `ios-imap-notes-offline@${app.getVersion()}`,
+      environment: app.isPackaged ? "production" : "development",
+      sendDefaultPii: false,
+    });
+  }
 }
 
 function publicAccount(account) {
@@ -613,6 +638,7 @@ async function listSettings() {
   return {
     accounts: settings.accounts.map(publicAccount),
     llm: publicApiKeySettings(settings),
+    diagnostics: { sentryDsn: settings.diagnostics.sentryDsn },
     credentialProtection: credentialProtection(),
   };
 }
@@ -660,7 +686,11 @@ async function saveSettings(input) {
       }
     },
   );
-  await writeJson(settingsFile(), { version: SETTINGS_VERSION, accounts, llm });
+  const diagnostics = {
+    sentryDsn: normalizeSentryDsn(input?.diagnostics?.sentryDsn),
+  };
+  await writeJson(settingsFile(), { version: SETTINGS_VERSION, accounts, llm, diagnostics });
+  await configureSentry(diagnostics.sentryDsn);
   return listSettings();
 }
 
@@ -1014,7 +1044,14 @@ function assertTrustedSender(event) {
 function handle(channel, callback) {
   ipcMain.handle(channel, async (event, ...args) => {
     assertTrustedSender(event);
-    return callback(event, ...args);
+    try {
+      return await callback(event, ...args);
+    } catch (error) {
+      if (activeSentryDsn) {
+        Sentry.captureException(error, { tags: { ipcChannel: channel } });
+      }
+      throw error;
+    }
   });
 }
 
@@ -1038,6 +1075,10 @@ function registerHandlers() {
   handle("settings:ensure-mailbox", (_event, accountId) => (
     serializeOperation(() => ensureAccountMailbox(accountId))
   ));
+  handle("diagnostics:open-dev-tools", event => {
+    BrowserWindow.fromWebContents(event.sender)?.webContents.openDevTools({ mode: "detach" });
+    return true;
+  });
   handle("updates:get-state", () => ({ ...updateState }));
   handle("updates:check", checkForUpdates);
   handle("updates:download", downloadUpdate);
@@ -1045,6 +1086,14 @@ function registerHandlers() {
   ipcMain.on("app:close-window", event => {
     assertTrustedSender(event);
     BrowserWindow.fromWebContents(event.sender)?.destroy();
+  });
+  ipcMain.on("diagnostics:renderer-error", (event, input) => {
+    assertTrustedSender(event);
+    if (!activeSentryDsn) return;
+    const error = new Error(String(input?.message || "Unknown renderer error"));
+    error.name = String(input?.name || "RendererError");
+    if (input?.stack) error.stack = String(input.stack);
+    Sentry.captureException(error, { tags: { process: "renderer" } });
   });
 }
 
@@ -1077,6 +1126,7 @@ async function createWindow() {
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
+  await configureSentry((await readSettingsRaw()).diagnostics.sentryDsn);
   configureUpdater();
   registerHandlers();
   await createWindow();

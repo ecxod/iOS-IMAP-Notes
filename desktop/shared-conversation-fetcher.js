@@ -3,17 +3,65 @@ const { normalizeConversation, parseSharedUrl } = require("./conversation-import
 
 const LOAD_TIMEOUT = 30_000;
 
-function extractionScript(provider) {
+function extractionScript(provider, citationGroups = []) {
   if (provider === "gemini") {
     return `(() => {
+      const citationGroups = ${JSON.stringify(citationGroups)};
       const turns = [];
-      for (const container of document.querySelectorAll("share-turn-viewer")) {
+      for (const [assistantIndex, container] of [...document.querySelectorAll("share-turn-viewer")].entries()) {
         const turnId = container.id || String(turns.length);
         const user = container.querySelector(".query-text-line")?.innerText?.trim();
-        const assistant = container.querySelector("response-container .markdown")?.innerText?.trim()
-          || container.querySelector("response-container message-content")?.innerText?.trim();
+        const response = container.querySelector("response-container .markdown")
+          || container.querySelector("response-container message-content");
+        const assistant = response?.innerText?.trim();
+        let assistantHtml = "";
+        if (response) {
+          const clone = response.cloneNode(true);
+          const groups = citationGroups.filter(group => group.assistantIndex === assistantIndex);
+          const missingGroups = [];
+          for (const group of groups) {
+            const chip = clone.querySelectorAll("source-inline-chip")[group.chipIndex];
+            if (!chip || !group.links?.length) {
+              if (group.links?.length) missingGroups.push(group);
+              continue;
+            }
+            const citation = document.createElement("span");
+            citation.append(" [");
+            group.links.forEach((source, index) => {
+              if (index) citation.append(", ");
+              const link = document.createElement("a");
+              link.href = source.href;
+              link.textContent = source.text || "Source";
+              citation.append(link);
+            });
+            citation.append("]");
+            (chip.closest("sources-carousel-inline") || chip).replaceWith(citation);
+          }
+          if (missingGroups.length) {
+            const sources = document.createElement("p");
+            const label = document.createElement("strong");
+            label.textContent = "Sources: ";
+            sources.append(label);
+            missingGroups.flatMap(group => group.links).forEach((source, index) => {
+              if (index) sources.append(", ");
+              const link = document.createElement("a");
+              link.href = source.href;
+              link.textContent = source.text || "Source";
+              sources.append(link);
+            });
+            clone.append(sources);
+          }
+          clone.querySelectorAll("button, source-footnote, source-inline-chip, sources-carousel-inline")
+            .forEach(node => node.remove());
+          assistantHtml = clone.innerHTML.trim();
+        }
         if (user) turns.push({ id: turnId + ":user", role: "user", text: user });
-        if (assistant) turns.push({ id: turnId + ":assistant", role: "assistant", text: assistant });
+        if (assistant) turns.push({
+          id: turnId + ":assistant",
+          role: "assistant",
+          text: assistant,
+          html: assistantHtml,
+        });
       }
       return {
         provider: "gemini",
@@ -32,6 +80,7 @@ function extractionScript(provider) {
           || String(index),
         role: node.getAttribute("data-message-author-role"),
         text: node.innerText?.trim() || "",
+        html: node.innerHTML?.trim() || "",
       })),
   }))()`;
 }
@@ -43,6 +92,89 @@ function delay(milliseconds) {
 function assertAllowedNavigation(rawUrl, provider) {
   parseSharedUrl(rawUrl, provider);
   return true;
+}
+
+async function dismissGeminiCookieDialog(window) {
+  await window.webContents.executeJavaScript(`(() => {
+    const button = [...document.querySelectorAll("button")].find(candidate => {
+      const text = candidate.innerText?.trim().toLowerCase();
+      return text === "reject all" || text === "alle ablehnen";
+    });
+    if (button) button.click();
+  })()`, true);
+}
+
+async function collectGeminiCitationGroups(window, deadline) {
+  const groups = [];
+  await dismissGeminiCookieDialog(window);
+  await delay(300);
+  let count = 0;
+  const sourceDeadline = Math.min(deadline, Date.now() + 1_500);
+  while (!count && Date.now() < sourceDeadline) {
+    count = await window.webContents.executeJavaScript(
+      `document.querySelectorAll("response-container .markdown source-inline-chip button").length`,
+      true,
+    );
+    if (!count) await delay(150);
+  }
+  for (let index = 0; index < Math.min(Number(count) || 0, 40) && Date.now() < deadline; index += 1) {
+    const location = await window.webContents.executeJavaScript(`(() => {
+      const buttons = [...document.querySelectorAll("response-container .markdown source-inline-chip button")];
+      const button = buttons[${index}];
+      if (!button) return null;
+      button.scrollIntoView({ block: "center", inline: "center" });
+      const response = button.closest("response-container");
+      const responses = [...document.querySelectorAll("share-turn-viewer response-container")];
+      const chip = button.closest("source-inline-chip");
+      const chips = response ? [...response.querySelectorAll(".markdown source-inline-chip")] : [];
+      const rect = button.getBoundingClientRect();
+      return {
+        assistantIndex: responses.indexOf(response),
+        chipIndex: chips.indexOf(chip),
+        x: Math.round(rect.x + rect.width / 2),
+        y: Math.round(rect.y + rect.height / 2),
+      };
+    })()`, true);
+    if (!location || location.assistantIndex < 0 || location.chipIndex < 0) {
+      continue;
+    }
+    window.webContents.sendInputEvent({
+      type: "mouseDown", x: location.x, y: location.y, button: "left", clickCount: 1,
+    });
+    window.webContents.sendInputEvent({
+      type: "mouseUp", x: location.x, y: location.y, button: "left", clickCount: 1,
+    });
+    let links = [];
+    const overlayDeadline = Math.min(deadline, Date.now() + 1_200);
+    while (Date.now() < overlayDeadline) {
+      links = await window.webContents.executeJavaScript(`(() => {
+        const anchors = [...document.querySelectorAll(
+          '[role="dialog"] a[href], mat-bottom-sheet-container a[href], .cdk-overlay-container a[href]'
+        )];
+        const seen = new Set();
+        return anchors.map(anchor => {
+          const href = anchor.href;
+          if (!/^https?:\\/\\//i.test(href) || seen.has(href)) return null;
+          seen.add(href);
+          const lines = (anchor.innerText || "").split("\\n").map(line => line.trim()).filter(Boolean);
+          return { href, text: lines[0] || new URL(href).hostname };
+        }).filter(Boolean);
+      })()`, true);
+      if (links.length) break;
+      await delay(100);
+    }
+    if (links.length) {
+      groups.push({
+        assistantIndex: location.assistantIndex,
+        chipIndex: location.chipIndex,
+        links,
+      });
+    }
+    window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Escape" });
+    window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Escape" });
+    await delay(100);
+  }
+  return groups;
 }
 
 async function fetchSharedConversation(BrowserWindow, rawUrl, provider, timeout = LOAD_TIMEOUT) {
@@ -86,6 +218,18 @@ async function fetchSharedConversation(BrowserWindow, rawUrl, provider, timeout 
     if (!extracted?.turns?.length) {
       throw new Error(`The public ${requested.provider === "gemini" ? "Gemini" : "ChatGPT"} conversation did not load.`);
     }
+    if (requested.provider === "gemini") {
+      let citationGroups = [];
+      try {
+        citationGroups = await collectGeminiCitationGroups(window, deadline);
+      } catch {
+        // Formatting and text import still work if Gemini changes its citation overlay.
+      }
+      extracted = await window.webContents.executeJavaScript(
+        extractionScript(requested.provider, citationGroups),
+        true,
+      );
+    }
     assertAllowedNavigation(extracted.url, requested.provider);
     return normalizeConversation(extracted);
   } finally {
@@ -96,6 +240,7 @@ async function fetchSharedConversation(BrowserWindow, rawUrl, provider, timeout 
 }
 
 module.exports = {
+  collectGeminiCitationGroups,
   extractionScript,
   fetchSharedConversation,
 };

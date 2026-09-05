@@ -51,6 +51,7 @@ const settingsDialog = document.getElementById("settings-dialog");
 const settingsState = document.getElementById("settings-state");
 const accountList = document.getElementById("account-list");
 const openAiApiKey = document.getElementById("openai-api-key");
+const sentryDsn = document.getElementById("sentry-dsn");
 const geminiApiKey = document.getElementById("gemini-api-key");
 const appVersion = document.getElementById("app-version");
 const updateStateText = document.getElementById("update-state");
@@ -1043,6 +1044,7 @@ async function loadSettings() {
   }
   showStoredApiKeyState(openAiApiKey, settings.llm?.hasOpenAiApiKey);
   showStoredApiKeyState(geminiApiKey, settings.llm?.hasGeminiApiKey);
+  sentryDsn.value = settings.diagnostics?.sentryDsn || "";
   configureAiProviders(settings.llm);
   renderAccountChoices();
   renderList();
@@ -1373,6 +1375,9 @@ async function saveSettings() {
         openaiApiKey: openAiApiKey.value,
         geminiApiKey: geminiApiKey.value,
       },
+      diagnostics: {
+        sentryDsn: sentryDsn.value,
+      },
     });
     await loadSettings();
     settingsDialog.close("save");
@@ -1443,6 +1448,9 @@ async function init() {
   document.getElementById("import-note").addEventListener("click", importNote);
   document.getElementById("sync-notes").addEventListener("click", syncNotes);
   document.getElementById("open-settings").addEventListener("click", openSettings);
+  document.getElementById("open-dev-tools").addEventListener("click", () => {
+    window.notesApi.diagnostics.openDevTools();
+  });
   checkUpdatesButton.addEventListener("click", () => window.notesApi.updates.check());
   updateAppButton.addEventListener("click", useUpdateButton);
   closeAppButton.addEventListener("click", closeApplication);
@@ -1532,6 +1540,30 @@ async function init() {
   }
 }
 
+window.addEventListener("error", event => {
+  window.notesApi.diagnostics.reportError({
+    name: event.error?.name || "RendererError",
+    message: event.error?.message || event.message,
+    stack: event.error?.stack || "",
+  });
+});
+
+window.addEventListener("unhandledrejection", event => {
+  const reason = event.reason;
+  window.notesApi.diagnostics.reportError({
+    name: reason?.name || "UnhandledRejection",
+    message: reason?.message || String(reason),
+    stack: reason?.stack || "",
+  });
+});
+
 window.addEventListener("DOMContentLoaded", () => {
-  init().catch(error => { syncState.textContent = errorText(error); });
+  init().catch(error => {
+    syncState.textContent = errorText(error);
+    window.notesApi.diagnostics.reportError({
+      name: error?.name || "InitializationError",
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+    });
+  });
 });

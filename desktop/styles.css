@@ -640,6 +640,33 @@ dialog form {
   background: color-mix(in srgb, Canvas 96%, CanvasText 4%);
 }
 
+.diagnostics-settings {
+  margin: 0 0.7rem 0.45rem;
+  padding: 0.5rem;
+  border: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, Canvas 96%, CanvasText 4%);
+}
+
+.diagnostics-settings h3 {
+  margin: 0 0 0.4rem;
+}
+
+.diagnostics-row {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(12rem, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.diagnostics-row strong {
+  font-size: 0.84rem;
+}
+
+.diagnostics-row input {
+  min-width: 0;
+}
+
 .api-key-settings h3,
 .api-key-settings p {
   margin: 0;

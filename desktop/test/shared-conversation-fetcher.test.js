@@ -11,11 +11,19 @@ test("accepts only supported HTTPS provider share links", () => {
 });
 
 test("extractors read message roles and text without page title metadata", () => {
-  const gemini = extractionScript("gemini");
+  const gemini = extractionScript("gemini", [{
+    assistantIndex: 0,
+    chipIndex: 0,
+    links: [{ text: "Umweltbundesamt", href: "https://example.org/source" }],
+  }]);
   const chatgpt = extractionScript("chatgpt");
   assert.match(gemini, /share-turn-viewer/);
   assert.match(gemini, /query-text-line/);
+  assert.match(gemini, /assistantHtml/);
+  assert.match(gemini, /Umweltbundesamt/);
+  assert.match(gemini, /https:\/\/example\.org\/source/);
   assert.match(chatgpt, /data-message-author-role/);
+  assert.match(chatgpt, /innerHTML/);
   assert.doesNotMatch(gemini, /og:title|document\.title/);
   assert.doesNotMatch(chatgpt, /og:title|document\.title/);
 });

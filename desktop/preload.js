@@ -22,6 +22,10 @@ contextBridge.exposeInMainWorld("notesApi", Object.freeze({
   editor: Object.freeze({
     onPastePlainText: callback => ipcRenderer.on("editor:paste-plain-text", () => callback()),
   }),
+  diagnostics: Object.freeze({
+    openDevTools: () => ipcRenderer.invoke("diagnostics:open-dev-tools"),
+    reportError: error => ipcRenderer.send("diagnostics:renderer-error", error),
+  }),
   settings: Object.freeze({
     list: () => ipcRenderer.invoke("settings:list"),
     save: settings => ipcRenderer.invoke("settings:save", settings),

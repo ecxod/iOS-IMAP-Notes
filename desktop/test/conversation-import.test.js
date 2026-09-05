@@ -9,6 +9,7 @@ const {
   normalizeConversation,
   providerForSharedUrl,
   renderConversation,
+  sanitizeTurnHtml,
 } = require("../conversation-import");
 
 test("detects the provider from a supported public share link", () => {
@@ -48,6 +49,46 @@ test("normalizes only prompt and answer data, not the provider title", () => {
   assert.match(html, /Start with a snapshot/);
   assert.doesNotMatch(html, /Provider title/);
   assert.doesNotMatch(html, /gemini\.google/);
+});
+
+test("preserves safe rich answer formatting and links", () => {
+  const conversation = sharedConversation({
+    turns: [
+      { id: "u1", role: "user", text: "Show sources" },
+      {
+        id: "a1",
+        role: "assistant",
+        text: "Water\nOne item\nSource",
+        html: '<h3 onclick="bad()">Water</h3><ul><li><b>One item</b></li></ul>'
+          + '<p><a href="https://example.org/source" target="_blank">Source</a>'
+          + '<a href="javascript:alert(1)">Unsafe</a></p><script>alert(1)</script>',
+      },
+    ],
+  });
+  const html = renderConversation(conversation);
+  assert.match(html, /<h3>Water<\/h3>/);
+  assert.match(html, /<ul><li><b>One item<\/b><\/li><\/ul>/);
+  assert.match(html, /<a href="https:\/\/example\.org\/source">Source<\/a>/);
+  assert.doesNotMatch(html, /onclick|target=|javascript:|script/);
+});
+
+test("formatting changes do not change conversation identity", () => {
+  const plain = sharedConversation();
+  const rich = sharedConversation({
+    turns: [
+      { id: "u1", role: "user", text: "Plan a safe import", html: "<p>Plan a safe import</p>" },
+      { id: "a1", role: "assistant", text: "Start with a snapshot.", html: "<p><b>Start</b> with a snapshot.</p>" },
+    ],
+  });
+  assert.equal(plain.revision, rich.revision);
+  assert.equal(conversationSimilarity(plain, rich).exactPrefix, true);
+});
+
+test("removes unsafe and unsupported imported markup", () => {
+  assert.equal(
+    sanitizeTurnHtml('<img src="https://example.org/tracker"><a href="data:text/html,bad">bad</a><p style="color:red">Safe</p>'),
+    "<p>Safe</p>",
+  );
 });
 
 test("recognizes a longer conversation only when the stored turns are its prefix", () => {
