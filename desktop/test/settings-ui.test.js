@@ -5,11 +5,11 @@ const path = require("node:path");
 
 const desktopRoot = path.join(__dirname, "..");
 
-test("settings offer masked ChatGPT and Gemini API key inputs", async () => {
+test("settings offer masked OpenAI and Gemini API key inputs", async () => {
   const html = await readFile(path.join(desktopRoot, "index.html"), "utf8");
   for (const [id, label] of [
-    ["openai-api-key", "ChatGPT / OpenAI API key"],
-    ["gemini-api-key", "Gemini API key"],
+    ["openai-api-key", "OpenAI API key"],
+    ["gemini-api-key", "API key"],
   ]) {
     assert.match(html, new RegExp(`${label}[\\s\\S]*<input id="${id}"[^>]*type="password"`));
   }
@@ -37,7 +37,15 @@ test("settings provide desktop-only public-link import controls", async () => {
   ]) {
     assert.match(html, new RegExp(`id="${id}"`));
   }
-  assert.match(html, /Only prompts and answers are synchronized/);
+  assert.match(html, /synchronize only prompts and answers/);
   assert.match(preload, /conversations:import/);
   assert.match(renderer, /notesApi\.conversations\.import/);
+});
+
+test("settings use compact account and provider rows", async () => {
+  const styles = await readFile(path.join(desktopRoot, "styles.css"), "utf8");
+  assert.match(styles, /#settings-dialog\s*{[^}]*1040px/s);
+  assert.match(styles, /#account-list:not\(:empty\)\s*{[^}]*min-height/s);
+  assert.match(styles, /\.account-grid\s*{[^}]*grid-template-columns:[^;}]*minmax\(8rem/s);
+  assert.match(styles, /\.ai-provider-card\s*{[^}]*grid-template-columns:[^;}]*4\.8rem/s);
 });

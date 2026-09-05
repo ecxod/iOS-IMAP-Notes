@@ -451,6 +451,16 @@ dialog form {
   flex-direction: column;
 }
 
+#settings-form {
+  width: 100%;
+  min-width: 0;
+}
+
+#settings-dialog {
+  width: min(94vw, 1040px);
+  max-width: min(96vw, 1040px);
+}
+
 #new-note-dialog form {
   min-width: min(86vw, 420px);
   gap: 1rem;
@@ -461,8 +471,8 @@ dialog form {
 .account-card label,
 .api-key-settings label {
   display: grid;
-  gap: 0.25rem;
-  font-size: 0.84rem;
+  gap: 0.18rem;
+  font-size: 0.78rem;
 }
 
 #new-note-dialog select,
@@ -471,7 +481,7 @@ dialog form {
 .api-key-settings input,
 .api-key-settings select {
   min-width: 0;
-  padding: 0.4rem 0.5rem;
+  padding: 0.3rem 0.42rem;
   border: 1px solid color-mix(in srgb, CanvasText 28%, transparent);
   border-radius: 0.35rem;
   background: Field;
@@ -484,7 +494,7 @@ dialog form {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.9rem 1rem;
+  padding: 0.55rem 0.7rem;
   border-bottom: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
 }
 
@@ -494,7 +504,7 @@ dialog form {
 }
 
 .dialog-header p {
-  margin-top: 0.25rem;
+  margin-top: 0.1rem;
   opacity: 0.72;
   font-size: 0.82rem;
 }
@@ -506,13 +516,19 @@ dialog form {
 }
 
 #account-list {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
-  padding: 0.8rem 1rem;
+  padding: 0.45rem 0.7rem;
+}
+
+#account-list:not(:empty) {
+  min-height: min(15rem, 38vh);
 }
 
 .api-key-settings {
-  margin: 0 1rem 0.8rem;
-  padding: 0.8rem;
+  margin: 0 0.7rem 0.45rem;
+  padding: 0.5rem;
   border: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
   border-radius: 0.5rem;
   background: color-mix(in srgb, Canvas 96%, CanvasText 4%);
@@ -524,38 +540,48 @@ dialog form {
 }
 
 .api-key-settings p {
-  margin-top: 0.25rem;
+  margin-top: 0.35rem;
   opacity: 0.72;
   font-size: 0.8rem;
 }
 
+.api-key-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
 .api-key-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.65rem;
-  margin-top: 0.7rem;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
 }
 
 .ai-provider-card {
   display: grid;
-  align-content: start;
-  gap: 0.6rem;
-  padding: 0.7rem;
+  grid-template-columns: 4.8rem minmax(10rem, 0.85fr) minmax(16rem, 1.4fr) auto;
+  align-items: end;
+  gap: 0.45rem;
+  padding: 0.4rem;
   border: 1px solid color-mix(in srgb, CanvasText 16%, transparent);
   border-radius: 0.4rem;
 }
 
-.ai-provider-card button {
-  justify-self: start;
+.ai-provider-card strong {
+  align-self: center;
+  font-size: 0.84rem;
 }
 
 .conversation-import-home-label {
-  margin-top: 0.7rem;
+  grid-template-columns: auto minmax(10rem, 15rem);
+  align-items: center;
+  white-space: nowrap;
 }
 
 .account-card {
-  margin-bottom: 0.75rem;
-  padding: 0.8rem;
+  margin-bottom: 0.4rem;
+  padding: 0.48rem;
   border: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
   border-radius: 0.5rem;
   background: color-mix(in srgb, Canvas 96%, CanvasText 4%);
@@ -566,7 +592,7 @@ dialog form {
 .account-options {
   display: flex;
   align-items: end;
-  gap: 0.7rem;
+  gap: 0.45rem;
 }
 
 .account-card-title > label:first-child {
@@ -575,14 +601,9 @@ dialog form {
 
 .account-grid {
   display: grid;
-  grid-template-columns: 2fr 0.7fr 1.5fr;
-  gap: 0.65rem;
-  margin-top: 0.7rem;
-}
-
-.account-grid > label:nth-child(4),
-.account-grid > label:nth-child(5) {
-  grid-column: span 1;
+  grid-template-columns: minmax(8rem, 1.5fr) 4.3rem minmax(7rem, 1.2fr) minmax(7rem, 1.2fr) minmax(6rem, 1fr) auto;
+  gap: 0.4rem;
+  margin-top: 0.38rem;
 }
 
 .check-label {
@@ -602,7 +623,7 @@ dialog form {
 
 .account-test-row {
   align-items: center;
-  margin-top: 0.7rem;
+  margin-top: 0.38rem;
 }
 
 .account-test-row span {
@@ -614,7 +635,7 @@ dialog form {
 #settings-state {
   min-height: 1.2rem;
   margin: 0;
-  padding: 0 1rem 0.6rem;
+  padding: 0 0.7rem 0.35rem;
   color: #b00020;
 }
 
@@ -643,6 +664,15 @@ dialog form {
 
   #save-state {
     display: none;
+  }
+
+  .ai-provider-card {
+    grid-template-columns: 4.8rem 1fr;
+  }
+
+  .ai-provider-card label:nth-of-type(2),
+  .ai-provider-card button {
+    grid-column: 2;
   }
 
   #note-home {

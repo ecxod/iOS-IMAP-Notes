@@ -119,39 +119,40 @@
       </header>
       <div id="account-list"></div>
       <section class="api-key-settings" aria-labelledby="api-key-settings-title">
-        <div>
+        <div class="api-key-heading">
           <h3 id="api-key-settings-title">AI providers</h3>
-          <p>Keys are encrypted with <span class="credential-protection-copy">the operating system</span>. Leave a stored key blank to keep it.</p>
+          <label class="conversation-import-home-label">
+            New imports
+            <select id="conversation-import-home"></select>
+          </label>
         </div>
         <div class="api-key-grid">
           <section class="ai-provider-card">
+            <strong>ChatGPT</strong>
             <label>
-              ChatGPT / OpenAI API key
+              OpenAI API key
               <input id="openai-api-key" type="password" autocomplete="new-password" spellcheck="false" placeholder="Enter API key">
             </label>
             <label>
-              Public ChatGPT conversation link
+              Public conversation link
               <input id="chatgpt-share-link" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://chatgpt.com/share/…">
             </label>
-            <button id="import-chatgpt-link" type="button">Import / update ChatGPT</button>
+            <button id="import-chatgpt-link" type="button">Import / update</button>
           </section>
           <section class="ai-provider-card">
+            <strong>Gemini</strong>
             <label>
-              Gemini API key
+              API key
               <input id="gemini-api-key" type="password" autocomplete="new-password" spellcheck="false" placeholder="Enter API key">
             </label>
             <label>
-              Public Gemini conversation link
+              Public conversation link
               <input id="gemini-share-link" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://share.gemini.google/…">
             </label>
-            <button id="import-gemini-link" type="button">Import / update Gemini</button>
+            <button id="import-gemini-link" type="button">Import / update</button>
           </section>
         </div>
-        <label class="conversation-import-home-label">
-          Store new imported conversations in
-          <select id="conversation-import-home"></select>
-        </label>
-        <p>Only prompts and answers are synchronized. Provider titles and other page information are ignored. Imported conversations have a private local Git history. Save newly added account settings before importing into them.</p>
+        <p>Imports synchronize only prompts and answers; page metadata is ignored. Save a newly added account before importing into it.</p>
       </section>
       <p id="settings-state" role="status"></p>
       <footer class="dialog-actions">
