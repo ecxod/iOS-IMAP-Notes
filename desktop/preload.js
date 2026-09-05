@@ -5,6 +5,12 @@ contextBridge.exposeInMainWorld("notesApi", Object.freeze({
   get: id => ipcRenderer.invoke("notes:get", id),
   create: input => ipcRenderer.invoke("notes:create", input),
   save: note => ipcRenderer.invoke("notes:save", note),
+  transfer: input => ipcRenderer.invoke("notes:transfer", input),
+  showContextMenu: input => ipcRenderer.invoke("notes:show-context-menu", input),
+  onContextAction: callback => ipcRenderer.on(
+    "notes:context-action",
+    (_event, action) => callback(action),
+  ),
   delete: id => ipcRenderer.invoke("notes:delete", id),
   sync: () => ipcRenderer.invoke("notes:sync"),
   import: () => ipcRenderer.invoke("notes:import"),

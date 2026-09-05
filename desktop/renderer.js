@@ -824,6 +824,21 @@ function renderHighlightedText(element, value, query) {
   element.append(text.slice(offset));
 }
 
+function noteTab(noteId) {
+  return openTabs.find(tab => tab.noteId === noteId) || null;
+}
+
+function showNoteContextMenu(event, note) {
+  event.preventDefault();
+  const tab = noteTab(note.id);
+  window.notesApi.showContextMenu({
+    noteId: note.id,
+    canSave: Boolean(tab?.dirty) && !note.readOnly,
+  }).catch(error => {
+    syncState.textContent = errorText(error);
+  });
+}
+
 function renderList() {
   list.replaceChildren();
   for (const note of visibleNotes()) {
@@ -849,6 +864,7 @@ function renderList() {
 
     button.append(noteTitle, details);
     button.addEventListener("click", () => selectNote(note.id));
+    button.addEventListener("contextmenu", event => showNoteContextMenu(event, note));
     item.append(button);
     list.append(item);
   }
@@ -1139,6 +1155,90 @@ async function saveNote() {
   } catch (error) {
     saveState.textContent = errorText(error);
     saveButton.disabled = false;
+  }
+}
+
+async function noteDraftForTransfer(noteId) {
+  if (selected?.id === noteId && !captureActiveTab()) {
+    throw new Error("The current note could not be prepared for transfer.");
+  }
+  const tab = noteTab(noteId);
+  return tab?.note || window.notesApi.get(noteId);
+}
+
+async function saveNoteFromContext(noteId) {
+  const tab = noteTab(noteId);
+  if (!tab?.dirty || !activateTab(tab.id)) {
+    return;
+  }
+  await saveNote();
+}
+
+async function transferNoteFromContext({ action, noteId, targetAccountId }) {
+  const sourceTab = noteTab(noteId);
+  const sourceWasActive = selected?.id === noteId;
+  const draft = await noteDraftForTransfer(noteId);
+  if (!draft) {
+    throw new Error("The selected note no longer exists.");
+  }
+  const target = accounts.find(account => account.id === targetAccountId);
+  const targetLabel = target ? `${target.name} · ${target.mailbox}` : "the destination server";
+  syncState.textContent = `${action === "move" ? "Moving" : "Copying"} “${draft.title}” to ${targetLabel}…`;
+  if (sourceWasActive) {
+    title.disabled = true;
+    editor.readOnly(true);
+  }
+  try {
+    const result = await window.notesApi.transfer({
+      mode: action,
+      noteId,
+      targetAccountId,
+      draft,
+    });
+    if (action === "move" && result.sourceRemoved && sourceTab) {
+      sourceTab.note = result.note;
+      sourceTab.noteId = result.note.id;
+      sourceTab.scope = NoteTabs.scopeForNote(result.note);
+      sourceTab.dirty = false;
+      if (sourceTab.id === activeTabId) {
+        selected = result.note;
+        dirty = false;
+      }
+    }
+    await refreshNotes();
+    if (sourceWasActive) {
+      displayActiveTab();
+    }
+    const verb = action === "move" && result.sourceRemoved ? "Moved" : "Copied";
+    syncState.textContent = `${verb} “${result.note.title}” to ${targetLabel}.`;
+    if (result.warning) {
+      window.alert(result.warning);
+    }
+  } finally {
+    if (sourceWasActive && selected?.id === noteId) {
+      displayActiveTab();
+    }
+  }
+}
+
+async function handleNoteContextAction(input) {
+  const action = String(input?.action || "");
+  const noteId = String(input?.noteId || "");
+  if (action === "save") {
+    await saveNoteFromContext(noteId);
+    return;
+  }
+  if (!["copy", "move"].includes(action)) {
+    return;
+  }
+  try {
+    await transferNoteFromContext({
+      action,
+      noteId,
+      targetAccountId: String(input?.targetAccountId || ""),
+    });
+  } catch (error) {
+    syncState.textContent = errorText(error);
   }
 }
 
@@ -1469,6 +1569,7 @@ async function init() {
   deleteButton.addEventListener("click", deleteNote);
   exportButton.addEventListener("click", exportNote);
   window.notesApi.editor.onPastePlainText(pastePlainText);
+  window.notesApi.onContextAction(handleNoteContextAction);
   title.addEventListener("input", () => {
     if (!selected) {
       return;

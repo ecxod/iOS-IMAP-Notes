@@ -38,8 +38,24 @@ test("plain-text paste is offered from the editor context menu instead of the to
   assert.match(main, /label: "Paste Plain Text"/);
   assert.match(main, /webContents\.on\("context-menu"/);
   assert.doesNotMatch(preload, /editor:show-context-menu/);
-  assert.doesNotMatch(renderer, /addEventListener\("contextmenu"/);
+  assert.doesNotMatch(renderer, /document\.addEventListener\("contextmenu"/);
   assert.match(renderer, /onPastePlainText\(pastePlainText\)/);
+});
+
+test("note context menu saves, copies, and safely moves to another server", async () => {
+  const [main, preload, renderer] = await Promise.all([
+    readFile(path.join(desktopRoot, "main.js"), "utf8"),
+    readFile(path.join(desktopRoot, "preload.js"), "utf8"),
+    readFile(path.join(desktopRoot, "renderer.js"), "utf8"),
+  ]);
+  assert.match(main, /label: "Save"[\s\S]*label: "Copy"[\s\S]*label: "Move"/);
+  assert.match(main, /destinationAccounts\(settings\.accounts, note\)/);
+  assert.match(main, /handle\("notes:transfer"/);
+  assert.match(preload, /showContextMenu:[\s\S]*notes:show-context-menu/);
+  assert.match(preload, /onContextAction:[\s\S]*notes:context-action/);
+  assert.match(renderer, /button\.addEventListener\("contextmenu"/);
+  assert.match(renderer, /window\.notesApi\.transfer/);
+  assert.match(renderer, /action === "move" && result\.sourceRemoved/);
 });
 
 test("editor context menu offers spelling suggestions and a persistent language choice", async () => {

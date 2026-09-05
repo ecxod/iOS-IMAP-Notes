@@ -9,6 +9,10 @@ const { updaterErrorMessage } = require("./update-utils");
 const { mergeEncryptedApiKeys, publicApiKeySettings } = require("./secret-settings");
 const { normalizeSentryDsn } = require("./diagnostics-settings");
 const {
+  destinationAccounts,
+  transferNoteSafely,
+} = require("./note-transfer");
+const {
   conversationMetadata,
   conversationNoteTitle,
   conversationSimilarity,
@@ -313,6 +317,51 @@ function showEditorContextMenu(window, params) {
     },
   );
   Menu.buildFromTemplate(template).popup({ window });
+}
+
+async function showNoteContextMenu(event, input) {
+  const noteId = String(input?.noteId || "");
+  const note = await getNote(noteId);
+  if (!note) {
+    throw new Error("The selected note no longer exists.");
+  }
+  const settings = await readSettingsRaw();
+  const targets = destinationAccounts(settings.accounts, note);
+  const webContents = event.sender;
+  const sendAction = (action, targetAccountId = "") => {
+    webContents.send("notes:context-action", { action, noteId, targetAccountId });
+  };
+  const destinationMenu = action => (
+    targets.length
+      ? targets.map(account => ({
+        label: `${account.name || account.user} · ${account.mailbox}`,
+        click: () => sendAction(action, account.id),
+      }))
+      : [{ label: "No other enabled server configured", enabled: false }]
+  );
+  const canTransfer = !note.readOnly && targets.length > 0;
+  const template = [
+    {
+      label: "Save",
+      enabled: input?.canSave === true && !note.readOnly,
+      click: () => sendAction("save"),
+    },
+    { type: "separator" },
+    {
+      label: "Copy",
+      enabled: canTransfer,
+      submenu: destinationMenu("copy"),
+    },
+    {
+      label: "Move",
+      enabled: canTransfer,
+      submenu: destinationMenu("move"),
+    },
+  ];
+  Menu.buildFromTemplate(template).popup({
+    window: BrowserWindow.fromWebContents(webContents),
+  });
+  return true;
 }
 
 function normalizeHome(value) {
@@ -852,6 +901,48 @@ async function saveNote(input, options = {}) {
   return { note: saved, warning };
 }
 
+async function transferNote(input) {
+  const mode = String(input?.mode || "");
+  const noteId = String(input?.noteId || "");
+  const targetAccountId = String(input?.targetAccountId || "");
+  const notes = [...await readNotes()];
+  const source = notes.find(note => note.id === noteId);
+  if (!source) {
+    throw new Error("The selected note no longer exists.");
+  }
+
+  const settings = await readSettingsRaw();
+  const target = destinationAccounts(settings.accounts, source)
+    .find(account => account.id === targetAccountId);
+  if (!target) {
+    throw new Error("Choose another enabled server as the destination.");
+  }
+  const password = await decryptPassword(target);
+  return transferNoteSafely({
+    mode,
+    source,
+    draft: input?.draft,
+    createDestination: content => createImapNote(target, password, {
+      ...content,
+      title: cleanTitle(content.title),
+    }),
+    persistState: async ({ copied, sourceRemoved }) => {
+      const retained = notes.filter(note => (
+        note.id !== copied.id && (!sourceRemoved || note.id !== source.id)
+      ));
+      retained.unshift(copied);
+      await writeNotes(retained);
+    },
+    deleteSource: async () => {
+      if (source.home.kind !== "imap") {
+        return;
+      }
+      const sourceCredentials = await resolveAccount(source.home.accountId);
+      await deleteImapNote(sourceCredentials.account, sourceCredentials.password, source);
+    },
+  });
+}
+
 async function conversationCandidates(remote) {
   const candidates = [];
   for (const note of await readNotes()) {
@@ -1067,6 +1158,8 @@ function registerHandlers() {
   handle("notes:get", (_event, id) => getNote(id));
   handle("notes:create", (_event, input) => serializeOperation(() => createNote(input)));
   handle("notes:save", (_event, input) => serializeOperation(() => saveNote(input)));
+  handle("notes:transfer", (_event, input) => serializeOperation(() => transferNote(input)));
+  handle("notes:show-context-menu", showNoteContextMenu);
   handle("notes:delete", (_event, id) => serializeOperation(() => deleteNote(id)));
   handle("notes:sync", () => serializeOperation(synchronizeAll));
   handle("notes:import", importNote);
