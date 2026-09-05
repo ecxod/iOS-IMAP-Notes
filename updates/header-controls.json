@@ -3,10 +3,10 @@
     "iOSNotes@siliconvenice.net": {
       "updates": [
         {
-          "version": "1.4.9",
-          "update_link": "https://github.com/ecxod/iOS-IMAP-Notes/releases/download/v1.4.9/thunderbird-ios-imap-notes-1.4.9-header-controls.xpi",
-          "update_hash": "sha256:2040bf50cd120ede62b8257559e3e0837aecd6b86a590ca333d83b46631b0242",
-          "update_info_url": "https://github.com/ecxod/iOS-IMAP-Notes/releases/tag/v1.4.9",
+          "version": "1.4.10",
+          "update_link": "https://github.com/ecxod/iOS-IMAP-Notes/releases/download/v1.4.10/thunderbird-ios-imap-notes-1.4.10-header-controls.xpi",
+          "update_hash": "sha256:b41902e69ee7da9c928e9f2b52c22197ebcbfa1e56adb95c2a2c3dc8879719fc",
+          "update_info_url": "https://github.com/ecxod/iOS-IMAP-Notes/releases/tag/v1.4.10",
           "applications": {
             "gecko": {
               "strict_min_version": "128.0",
