@@ -2,6 +2,7 @@ const { randomUUID } = require("node:crypto");
 const { normalizeConversation, parseSharedUrl } = require("./conversation-import");
 
 const LOAD_TIMEOUT = 30_000;
+const REDIRECT_TIMEOUT = 5_000;
 
 function extractionScript(provider, citationGroups = []) {
   if (provider === "gemini") {
@@ -153,6 +154,37 @@ function assertAllowedNavigation(rawUrl, provider) {
   return true;
 }
 
+async function resolveSharedConversationUrl(requested, fetchImpl = globalThis.fetch) {
+  const hostname = new URL(requested.url).hostname.toLowerCase();
+  if (requested.provider !== "gemini" || hostname !== "share.gemini.google") {
+    return requested.url;
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REDIRECT_TIMEOUT);
+  timer.unref?.();
+  try {
+    const response = await fetchImpl(requested.url, {
+      method: "HEAD",
+      redirect: "manual",
+      signal: controller.signal,
+    });
+    if (response.status < 300 || response.status >= 400) {
+      return requested.url;
+    }
+    const location = response.headers.get("location");
+    if (!location) {
+      return requested.url;
+    }
+    return parseSharedUrl(new URL(location, requested.url).href, requested.provider).url;
+  } catch {
+    // BrowserWindow still gets a chance to follow the short URL if pre-resolution fails.
+    return requested.url;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function dismissGeminiCookieDialog(window) {
   await window.webContents.executeJavaScript(`(() => {
     const button = [...document.querySelectorAll("button")].find(candidate => {
@@ -238,6 +270,7 @@ async function collectGeminiCitationGroups(window, deadline) {
 
 async function fetchSharedConversation(BrowserWindow, rawUrl, provider, timeout = LOAD_TIMEOUT) {
   const requested = parseSharedUrl(rawUrl, provider);
+  const loadUrl = await resolveSharedConversationUrl(requested);
   const window = new BrowserWindow({
     show: false,
     webPreferences: {
@@ -263,7 +296,7 @@ async function fetchSharedConversation(BrowserWindow, rawUrl, provider, timeout 
   const deadline = Date.now() + timeout;
   try {
     await Promise.race([
-      window.loadURL(requested.url),
+      window.loadURL(loadUrl),
       delay(timeout).then(() => { throw new Error("Timed out while loading the public conversation."); }),
     ]);
     let extracted = null;
@@ -302,4 +335,5 @@ module.exports = {
   collectGeminiCitationGroups,
   extractionScript,
   fetchSharedConversation,
+  resolveSharedConversationUrl,
 };
